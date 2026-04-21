@@ -1,14 +1,15 @@
 import cv2
 import torch
 from ultralytics import YOLO
-import supervision as sv
 import numpy as np
+import json
 
 player_model = YOLO("player_detection.pt")
-pose_model = YOLO("pose.pt")
-model = YOLO("court.pt")
 
-cap = cv2.VideoCapture("sample.mp4")
+with open("cp.json", "r", encoding="utf-8") as f:
+    court_points_by_frame = json.load(f)
+
+cap = cv2.VideoCapture("sample3.mp4")
 
 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 
@@ -35,13 +36,14 @@ court_pts = np.array([
     [0, court_h]
 ], dtype=np.float32)
 
-frame_pts = None
 H = None
 
 prev_positions = {}
 prev_frame_idx = {}
 frame_idx = 0
-kps = None
+player_colors = {}
+BROWN = (0, 0, 0)
+EXCLUDED_IDS = {20, 63, 69}
 
 while cap.isOpened():
     ret, frame = cap.read()
@@ -49,23 +51,15 @@ while cap.isOpened():
         break
 
     annotated_frame = frame.copy()
-
     results = player_model.track(
         frame,
         persist=True,
         conf=0.4,
-        tracker="bytetrack.yaml",
+        tracker="botsort.yaml",
         verbose=False,
         device=device,
         half=True,
     )
-
-    pose_results = pose_model(frame, verbose=False)
-    pose_boxes = []
-    pose_keypoints = []
-    if len(pose_results) > 0 and hasattr(pose_results[0], 'boxes') and hasattr(pose_results[0], 'keypoints'):
-        pose_boxes = pose_results[0].boxes.xyxy.cpu().numpy().astype(int)
-        pose_keypoints = pose_results[0].keypoints.xy.cpu().numpy()
 
     for r in results:
         boxes = r.boxes
@@ -82,47 +76,12 @@ while cap.isOpened():
 
             for i in range(len(ids)):
                 x1, y1, x2, y2 = xyxy[i]
+                player_id = ids[i]
+                if player_id in EXCLUDED_IDS:
+                    continue
 
-                best_iou = 0
-                best_idx = -1
-                for j, pbox in enumerate(pose_boxes):
-                    xx1 = max(x1, pbox[0])
-                    yy1 = max(y1, pbox[1])
-                    xx2 = min(x2, pbox[2])
-                    yy2 = min(y2, pbox[3])
-                    inter_area = max(0, xx2 - xx1) * max(0, yy2 - yy1)
-                    box_area = (x2 - x1) * (y2 - y1)
-                    pbox_area = (pbox[2] - pbox[0]) * (pbox[3] - pbox[1])
-                    union_area = box_area + pbox_area - inter_area
-                    iou = inter_area / union_area if union_area > 0 else 0
-                    if iou > best_iou:
-                        best_iou = iou
-                        best_idx = j
-
-                kps = None
-                if best_idx != -1 and best_iou > 0.1:
-                    kps = pose_keypoints[best_idx]
-
-                    skeleton = [
-                        (5, 7), (7, 9), (6, 8), (8, 10), (5, 6), (5, 11), (6, 12),
-                        (11, 12), (11, 13), (13, 15), (12, 14), (14, 16),
-                        (0, 1), (0, 2), (1, 3), (2, 4), (0, 5), (0, 6)
-                    ]
-
-                    for j1, j2 in skeleton:
-                        xk1, yk1 = int(kps[j1][0]), int(kps[j1][1])
-                        xk2, yk2 = int(kps[j2][0]), int(kps[j2][1])
-                        cv2.line(annotated_frame, (xk1, yk1), (xk2, yk2), (0,255,255), 2)
-
-                    for xk, yk in kps:
-                        cv2.circle(annotated_frame, (int(xk), int(yk)), 3, (0,0,255), -1)
-
-                    foot_x = int((kps[15][0] + kps[16][0]) / 2)
-                    foot_y = int((kps[15][1] + kps[16][1]) / 2)
-                    px, py = foot_x, foot_y
-                else:
-                    px = (x1 + x2) // 2
-                    py = y2
+                px = (x1 + x2) // 2
+                py = y2
 
                 point = np.array([[[px, py]]], dtype=np.float32)
                 mapped = cv2.perspectiveTransform(point, H)
@@ -168,6 +127,7 @@ while cap.isOpened():
 
                 prev_positions[player_id] = (mx, my)
                 prev_frame_idx[player_id] = frame_idx
+                player_colors[player_id] = (255, 0, 0)
 
                 cv2.putText(base_court, f"{player_id}", (mx-8, my-10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2)
@@ -194,6 +154,7 @@ while cap.isOpened():
 
                 prev_positions[player_id] = (mx, my)
                 prev_frame_idx[player_id] = frame_idx
+                player_colors[player_id] = (0, 0, 255)
 
                 cv2.putText(base_court, f"{player_id}", (mx-8, my-10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 2)
@@ -212,13 +173,16 @@ while cap.isOpened():
         for i in range(len(ids)):
             x1, y1, x2, y2 = xyxy[i]
             track_id = ids[i]
+            if track_id in EXCLUDED_IDS:
+                continue
 
             cbx = (x1 + x2) // 2
             width = x2 - x1
+            shirt_color = player_colors.get(track_id, (255, 0, 0))
 
             cv2.ellipse(annotated_frame, (cbx, y2),
                         (int(width), int(0.35 * width)),
-                        0, -45, 235, (255, 0, 0), 3)
+                        0, -45, 235, shirt_color, 3)
 
             rect_w, rect_h = 40, 20
             x1_rect = cbx - rect_w // 2
@@ -240,26 +204,41 @@ while cap.isOpened():
                         (x1_text, y1_rect + 32),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2)
 
-    if frame_pts is None:
-        court_results = model.predict(frame, conf=0.25, verbose=False)
-        for r in court_results:
-            boxes = r.boxes
-            if boxes is None:
-                continue
-            for box in boxes:
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
+    frame_corner_points = court_points_by_frame.get(str(frame_idx), [])
+    if len(frame_corner_points) >= 4:
+        top_left = tuple(map(int, frame_corner_points[0]))
+        top_right = tuple(map(int, frame_corner_points[1]))
+        bottom_right = tuple(map(int, frame_corner_points[2]))
+        bottom_left = tuple(map(int, frame_corner_points[3]))
 
-                top_left = (x1, y1)
-                top_right = (x2, y1)
-                bottom_right = (x2, y2)
-                bottom_left = (x1, y2)
+        frame_pts = np.array(
+            [top_left, top_right, bottom_right, bottom_left],
+            dtype=np.float32,
+        )
+        H, _ = cv2.findHomography(frame_pts, court_pts)
 
-                frame_pts = np.array([top_left, top_right,
-                                      bottom_right, bottom_left], dtype=np.float32)
+        # 1=top_left, 2=top_right, 3=bottom_right, 4=bottom_left
+        labeled_points = [
+            (1, top_left),
+            (2, top_right),
+            (3, bottom_right),
+            (4, bottom_left),
+        ]
+        corner_path = [top_left, top_right, bottom_right, bottom_left, top_left]
+        for start_point, end_point in zip(corner_path, corner_path[1:]):
+            cv2.line(annotated_frame, start_point, end_point, BROWN, 2)
 
-                H, _ = cv2.findHomography(frame_pts, court_pts)
-
-                break
+        for label, (px, py) in labeled_points:
+            cv2.circle(annotated_frame, (px, py), 6, BROWN, -1)
+            cv2.putText(
+                annotated_frame,
+                str(label),
+                (px + 6, py - 6),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                BROWN,
+                2,
+            )
 
     h_frame, w_frame = annotated_frame.shape[:2]
     y1 = margin
