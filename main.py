@@ -67,9 +67,11 @@ TEAM_RIGHT_COLOR = (
 
 BALL_COLOR = (
     0,
-    165,
+    0,
     255
 )
+
+BALL_KEEP_LAST_SEEN_FRAMES = 5
 
 COURT_LINE_COLOR = (
     0,
@@ -181,6 +183,92 @@ def calculate_iou(
         /
         union
     )
+
+
+# ============================================================
+# BALL DETECTION FALLBACK
+# ============================================================
+
+def find_ball_by_color(frame):
+    """
+    Fallback for missed YOLO ball detections.
+    Most volleyballs in this dataset are orange and the model can
+    intermittently fail; detect the strongest orange blob using HSV.
+    Returns (x, y, confidence) or None.
+    """
+
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+    lower_orange = np.array([5, 50, 50], dtype=np.uint8)
+    upper_orange = np.array([30, 255, 255], dtype=np.uint8)
+
+    mask = cv2.inRange(hsv, lower_orange, upper_orange)
+
+    kernel = np.ones((5, 5), dtype=np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if not contours:
+        return None
+
+    best_contour = max(contours, key=cv2.contourArea)
+    area = cv2.contourArea(best_contour)
+
+    if area < 30:
+        return None
+
+    x, y, w, h = cv2.boundingRect(best_contour)
+    cx = x + w / 2.0
+    cy = y + h / 2.0
+
+    area_ratio = area / max(frame.shape[0] * frame.shape[1], 1)
+    confidence = min(0.95, max(0.35, area_ratio * 20.0))
+
+    return float(cx), float(cy), float(confidence)
+
+
+def detect_ball(frame):
+    """Try the trained model first, then fall back to orange-color detection."""
+
+    ball_result = ball_model.predict(
+        frame,
+        conf=0.25,
+        device=device,
+        verbose=False
+    )[0]
+
+    if ball_result.boxes is not None and len(ball_result.boxes) > 0:
+        best_idx = int(torch.argmax(ball_result.boxes.conf).item())
+
+        ball_box = (
+            ball_result.boxes.xyxy[best_idx].cpu().numpy()
+        )
+
+        bx1, by1, bx2, by2 = ball_box
+
+        ball_x = float((bx1 + bx2) / 2.0)
+        ball_y = float((by1 + by2) / 2.0)
+        ball_confidence = float(ball_result.boxes.conf[best_idx].item())
+
+        return {
+            "x": ball_x,
+            "y": ball_y,
+            "confidence": ball_confidence
+        }
+
+    fallback = find_ball_by_color(frame)
+    if fallback is None:
+        return None
+
+    ball_x, ball_y, ball_confidence = fallback
+
+    return {
+        "x": ball_x,
+        "y": ball_y,
+        "confidence": ball_confidence
+    }
 
 
 # ============================================================
@@ -572,6 +660,12 @@ player_speeds = {}
 
 player_colors = {}
 
+last_ball_position = None
+
+last_ball_confidence = 0.0
+
+ball_miss_count = 0
+
 
 # ============================================================
 # OUTPUT
@@ -612,56 +706,33 @@ while cap.isOpened():
     # BALL DETECTION
     # ========================================================
 
-    ball_result = ball_model.predict(
-        frame,
-        conf=0.25,
-        device=device,
-        verbose=False
-    )[0]
+    ball_data = detect_ball(frame)
 
-    ball_data = None
+    if ball_data is not None:
 
-    if (
-        ball_result.boxes is not None
-        and len(ball_result.boxes) > 0
+        last_ball_position = (
+            float(ball_data["x"]),
+            float(ball_data["y"])
+        )
+        last_ball_confidence = float(ball_data["confidence"])
+        ball_miss_count = 0
+
+    elif (
+        last_ball_position is not None
+        and ball_miss_count < BALL_KEEP_LAST_SEEN_FRAMES
     ):
 
-        # Take the highest-confidence ball detection
-        best_idx = int(
-            torch.argmax(
-                ball_result.boxes.conf
-            ).item()
-        )
-
-        ball_box = (
-            ball_result.boxes.xyxy[
-                best_idx
-            ]
-            .cpu()
-            .numpy()
-        )
-
-        ball_confidence = float(
-            ball_result.boxes.conf[
-                best_idx
-            ].item()
-        )
-
-        bx1, by1, bx2, by2 = ball_box
-
-        ball_x = float(
-            (bx1 + bx2) / 2.0
-        )
-
-        ball_y = float(
-            (by1 + by2) / 2.0
-        )
-
         ball_data = {
-            "x": ball_x,
-            "y": ball_y,
-            "confidence": ball_confidence
+            "x": last_ball_position[0],
+            "y": last_ball_position[1],
+            "confidence": max(0.15, last_ball_confidence * 0.7)
         }
+        ball_miss_count += 1
+
+    if ball_data is not None:
+
+        ball_x = float(ball_data["x"])
+        ball_y = float(ball_data["y"])
 
         # Draw ball
         cv2.circle(
@@ -670,7 +741,7 @@ while cap.isOpened():
                 int(ball_x),
                 int(ball_y)
             ),
-            8,
+            10,
             BALL_COLOR,
             -1
         )
@@ -679,11 +750,11 @@ while cap.isOpened():
             annotated_frame,
             "BALL",
             (
-                int(ball_x) + 10,
-                int(ball_y) - 10
+                int(ball_x) + 12,
+                int(ball_y) - 12
             ),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
+            0.6,
             BALL_COLOR,
             2
         )
