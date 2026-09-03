@@ -191,18 +191,27 @@ def calculate_iou(
 
 def find_ball_by_color(frame):
     """
-    Fallback for missed YOLO ball detections.
-    Most volleyballs in this dataset are orange and the model can
-    intermittently fail; detect the strongest orange blob using HSV.
+    Detect the volleyball by orange color. This is more reliable than the
+    generic ball.pt model for this project because the ball is orange and the
+    camera scene is otherwise dominated by court/player colors.
     Returns (x, y, confidence) or None.
     """
 
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    # Work on a lighter copy for speed and robustness.
+    small = cv2.resize(frame, (0, 0), fx=0.6, fy=0.6)
+    hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
 
-    lower_orange = np.array([5, 50, 50], dtype=np.uint8)
-    upper_orange = np.array([30, 255, 255], dtype=np.uint8)
+    lower_orange = np.array([5, 60, 60], dtype=np.uint8)
+    upper_orange = np.array([35, 255, 255], dtype=np.uint8)
 
-    mask = cv2.inRange(hsv, lower_orange, upper_orange)
+    mask1 = cv2.inRange(hsv, lower_orange, upper_orange)
+
+    # Include reddish-orange tones as well.
+    lower_red = np.array([0, 60, 60], dtype=np.uint8)
+    upper_red = np.array([8, 255, 255], dtype=np.uint8)
+    mask2 = cv2.inRange(hsv, lower_red, upper_red)
+
+    mask = cv2.bitwise_or(mask1, mask2)
 
     kernel = np.ones((5, 5), dtype=np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
@@ -213,62 +222,70 @@ def find_ball_by_color(frame):
     if not contours:
         return None
 
-    best_contour = max(contours, key=cv2.contourArea)
-    area = cv2.contourArea(best_contour)
+    valid = []
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area < 25:
+            continue
+        x, y, w, h = cv2.boundingRect(contour)
+        aspect = w / max(h, 1)
+        if aspect < 0.3 or aspect > 3.0:
+            continue
+        valid.append((area, contour))
 
-    if area < 30:
+    if not valid:
         return None
 
+    _, best_contour = max(valid, key=lambda item: item[0])
+    area = cv2.contourArea(best_contour)
     x, y, w, h = cv2.boundingRect(best_contour)
-    cx = x + w / 2.0
-    cy = y + h / 2.0
+
+    cx = (x + (w / 2.0)) / 0.6
+    cy = (y + (h / 2.0)) / 0.6
 
     area_ratio = area / max(frame.shape[0] * frame.shape[1], 1)
-    confidence = min(0.95, max(0.35, area_ratio * 20.0))
+    confidence = min(0.99, max(0.45, area_ratio * 35.0))
 
     return float(cx), float(cy), float(confidence)
 
 
 def detect_ball(frame):
-    """Try the trained model first, then fall back to orange-color detection."""
+    """Use color-based detection as the primary method for this volleyball setup."""
 
-    ball_result = ball_model.predict(
-        frame,
-        conf=0.25,
-        device=device,
-        verbose=False
-    )[0]
+    color_ball = find_ball_by_color(frame)
+    if color_ball is not None:
+        ball_x, ball_y, ball_confidence = color_ball
+        return {
+            "x": ball_x,
+            "y": ball_y,
+            "confidence": float(ball_confidence)
+        }
+
+    # Model-based detection is kept only as a fallback when HSV misses.
+    try:
+        ball_result = ball_model.predict(
+            frame,
+            conf=0.25,
+            device=device,
+            verbose=False
+        )[0]
+    except Exception:
+        return None
 
     if ball_result.boxes is not None and len(ball_result.boxes) > 0:
         best_idx = int(torch.argmax(ball_result.boxes.conf).item())
-
-        ball_box = (
-            ball_result.boxes.xyxy[best_idx].cpu().numpy()
-        )
-
+        ball_box = ball_result.boxes.xyxy[best_idx].cpu().numpy()
         bx1, by1, bx2, by2 = ball_box
-
         ball_x = float((bx1 + bx2) / 2.0)
         ball_y = float((by1 + by2) / 2.0)
         ball_confidence = float(ball_result.boxes.conf[best_idx].item())
-
         return {
             "x": ball_x,
             "y": ball_y,
             "confidence": ball_confidence
         }
 
-    fallback = find_ball_by_color(frame)
-    if fallback is None:
-        return None
-
-    ball_x, ball_y, ball_confidence = fallback
-
-    return {
-        "x": ball_x,
-        "y": ball_y,
-        "confidence": ball_confidence
-    }
+    return None
 
 
 # ============================================================
