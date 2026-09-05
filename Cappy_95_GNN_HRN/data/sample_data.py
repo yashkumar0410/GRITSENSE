@@ -6,247 +6,458 @@ IMAGE_HEIGHT = 1080
 
 
 # ============================================================
-# SYNTHETIC PLAYER POSE
-# ============================================================
-
-def build_pose_for_player(
-    player_id: int,
-    base_x: float,
-    base_y: float,
-):
-    """
-    Build a deterministic synthetic 17-keypoint pose
-    for one player.
-
-    The pose is centered around the player's (x, y)
-    position so that players scattered around the court
-    also have corresponding scattered poses.
-    """
-
-    keypoints = [
-        # Head
-        (base_x, base_y - 120),
-
-        # Shoulders
-        (base_x - 25, base_y - 95),
-        (base_x + 25, base_y - 95),
-
-        # Elbows
-        (base_x - 55, base_y - 55),
-        (base_x + 55, base_y - 55),
-
-        # Wrists
-        (base_x - 70, base_y - 15),
-        (base_x + 70, base_y - 15),
-
-        # Hips
-        (base_x - 25, base_y),
-        (base_x + 25, base_y),
-
-        # Knees
-        (base_x - 45, base_y + 70),
-        (base_x + 45, base_y + 70),
-
-        # Ankles
-        (base_x - 50, base_y + 145),
-        (base_x + 50, base_y + 145),
-
-        # Additional body points
-        (base_x - 35, base_y - 155),
-        (base_x + 35, base_y - 155),
-        (base_x - 20, base_y + 175),
-        (base_x + 20, base_y + 175),
-    ]
-
-    flat_pose = []
-
-    for x, y in keypoints:
-        flat_pose.extend([x, y])
-
-    return np.asarray(
-        flat_pose,
-        dtype=np.float32,
-    )
-
-
-# ============================================================
-# SYNTHETIC VOLLEYBALL FRAME
+# REAL VOLLEYBALL FRAME
 # ============================================================
 
 def create_sample_data():
     """
-    Create one synthetic volleyball frame.
+    Create one real volleyball frame for the GNN/HRN pipeline.
 
-    Structure:
+    Source:
+        GritSense player_keypoints.json
+        ball_coordinates.json
 
-        Team 0: 6 players
-        Team 1: 6 players
-        Ball:   1
+    Frame: 204
 
-        Total = 13 nodes
+    This is NOT synthetic data.
+    Player positions, teams, velocities, poses, and ball
+    values come from the actual detector/tracker outputs.
 
-    Players are intentionally scattered around their
-    respective court halves to resemble a real volleyball
-    formation rather than a simple grid.
+    Where GritSense did not produce a pose for a player,
+    the pose is kept empty. No artificial pose is created.
     """
 
     # ========================================================
-    # TEAM 0
+    # ACTUAL PLAYERS
     # ========================================================
 
-    team_0_positions = [
-        # Front-left
-        (380, 380),
+    players = [
+        {
+            "id": 5,
 
-        # Front-middle
-        (720, 300),
+            "x": 816.0,
+            "y": 875.0,
 
-        # Front-right
-        (880, 470),
+            "vx": 2.0,
+            "vy": -2.0,
 
-        # Back-left
-        (300, 760),
+            "team": 0,
 
-        # Back-middle
-        (650, 850),
+            "confidence": 0.7242525219917297,
 
-        # Back-right
-        (900, 700),
+            # 17 REAL keypoints = 34 real coordinates
+            "pose": np.asarray(
+                [
+                    840.5050659179688, 729.1091918945312,
+                    839.5005493164062, 725.6531982421875,
+                    838.9202270507812, 725.9158325195312,
+                    823.3504028320312, 726.8896484375,
+                    834.7673950195312, 727.7314453125,
+                    812.857421875, 743.4816284179688,
+                    835.7723388671875, 744.943359375,
+                    802.5538330078125, 768.9029541015625,
+                    839.8997192382812, 770.5453491210938,
+                    805.138916015625, 792.7088012695312,
+                    842.9341430664062, 795.1134033203125,
+                    811.3335571289062, 789.5193481445312,
+                    828.818359375, 790.2075805664062,
+                    806.9225463867188, 824.1749267578125,
+                    839.7882080078125, 824.51611328125,
+                    799.4356079101562, 856.3280639648438,
+                    841.6923217773438, 857.750244140625,
+                ],
+                dtype=np.float32,
+            ),
+
+            "pose_available": True,
+            "pose_confidence": 0.7242525219917297,
+            "court_x": 119.0,
+            "court_y": 148.0,
+            "speed": 7.636753236814712,
+            "bbox": [779, 711, 853, 875],
+        },
+        {
+            "id": 6,
+
+            "x": 623.0,
+            "y": 875.0,
+
+            "vx": 2.0,
+            "vy": -2.0,
+
+            "team": 0,
+
+            "confidence": 0.7223938703536987,
+
+            # 17 REAL keypoints = 34 real coordinates
+            "pose": np.asarray(
+                [
+                    640.3699951171875, 732.6746215820312,
+                    640.5086669921875, 728.6382446289062,
+                    640.4677734375, 728.8550415039062,
+                    636.3008422851562, 730.94482421875,
+                    648.6333618164062, 731.3272705078125,
+                    630.931884765625, 747.0614013671875,
+                    650.85595703125, 748.0858764648438,
+                    618.3856201171875, 769.8980712890625,
+                    651.8897094726562, 773.1694946289062,
+                    614.028076171875, 790.25830078125,
+                    649.5673828125, 795.3017578125,
+                    630.7993774414062, 789.5718994140625,
+                    644.7718505859375, 789.551513671875,
+                    622.6576538085938, 825.5546875,
+                    636.1327514648438, 825.65478515625,
+                    617.1552124023438, 858.949951171875,
+                    632.0026245117188, 859.2744750976562,
+                ],
+                dtype=np.float32,
+            ),
+
+            "pose_available": True,
+            "pose_confidence": 0.7223938703536987,
+            "court_x": 86.0,
+            "court_y": 148.0,
+            "speed": 6.48999229583518,
+            "bbox": [587, 717, 660, 875],
+        },
+        {
+            "id": 11,
+
+            "x": 533.0,
+            "y": 784.0,
+
+            "vx": -5.0,
+            "vy": -1.0,
+
+            "team": 0,
+
+            "confidence": 0.7394894361495972,
+
+            # 17 REAL keypoints = 34 real coordinates
+            "pose": np.asarray(
+                [
+                    556.33447265625, 648.1363525390625,
+                    556.3140258789062, 645.011962890625,
+                    554.64794921875, 644.754638671875,
+                    543.7611694335938, 646.395263671875,
+                    554.671630859375, 646.5853881835938,
+                    535.1714477539062, 661.8355712890625,
+                    559.16650390625, 662.8223266601562,
+                    535.4804077148438, 680.5347900390625,
+                    577.796630859375, 682.4149169921875,
+                    544.0850219726562, 689.9164428710938,
+                    590.113037109375, 689.698974609375,
+                    528.03564453125, 703.6096801757812,
+                    542.16455078125, 703.8297119140625,
+                    532.869384765625, 734.2973022460938,
+                    544.0665893554688, 733.5016479492188,
+                    522.1985473632812, 768.4688110351562,
+                    530.6160888671875, 769.87646484375,
+                ],
+                dtype=np.float32,
+            ),
+
+            "pose_available": True,
+            "pose_confidence": 0.7394894361495972,
+            "court_x": 63.0,
+            "court_y": 102.0,
+            "speed": 8.049844718999243,
+            "bbox": [505, 634, 562, 784],
+        },
+        {
+            "id": 48,
+
+            "x": 822.0,
+            "y": 677.0,
+
+            "vx": 6.0,
+            "vy": 0.0,
+
+            "team": 0,
+
+            "confidence": 0.0,
+
+            # No pose was detected for this player in this frame.
+            # Do NOT replace this with a synthetic pose.
+            "pose": np.asarray([], dtype=np.float32),
+
+            "pose_available": False,
+            "pose_confidence": 0.0,
+            "court_x": 111.0,
+            "court_y": 33.0,
+            "speed": 7.636753236814712,
+            "bbox": [797, 563, 847, 677],
+        },
+        {
+            "id": 62,
+
+            "x": 737.0,
+            "y": 731.0,
+
+            "vx": 3.0,
+            "vy": -2.0,
+
+            "team": 0,
+
+            "confidence": 0.0,
+
+            # No pose was detected for this player in this frame.
+            # Do NOT replace this with a synthetic pose.
+            "pose": np.asarray([], dtype=np.float32),
+
+            "pose_available": False,
+            "pose_confidence": 0.0,
+            "court_x": 97.0,
+            "court_y": 70.0,
+            "speed": 6.48999229583518,
+            "bbox": [706, 604, 768, 731],
+        },
+        {
+            "id": 67,
+
+            "x": 999.0,
+            "y": 735.0,
+
+            "vx": 0.0,
+            "vy": 0.0,
+
+            "team": 0,
+
+            "confidence": 0.0,
+
+            # No pose was detected for this player in this frame.
+            # Do NOT replace this with a synthetic pose.
+            "pose": np.asarray([], dtype=np.float32),
+
+            "pose_available": False,
+            "pose_confidence": 0.0,
+            "court_x": 149.0,
+            "court_y": 71.0,
+            "speed": 0.0,
+            "bbox": [972, 574, 1026, 735],
+        },
+        {
+            "id": 1,
+
+            "x": 1016.0,
+            "y": 708.0,
+
+            "vx": -1.0,
+            "vy": 2.0,
+
+            "team": 1,
+
+            "confidence": 0.0,
+
+            # No pose was detected for this player in this frame.
+            # Do NOT replace this with a synthetic pose.
+            "pose": np.asarray([], dtype=np.float32),
+
+            "pose_available": False,
+            "pose_confidence": 0.0,
+            "court_x": 152.0,
+            "court_y": 53.0,
+            "speed": 11.525623627379126,
+            "bbox": [973, 563, 1060, 708],
+        },
+        {
+            "id": 3,
+
+            "x": 1400.0,
+            "y": 839.0,
+
+            "vx": -6.0,
+            "vy": -3.0,
+
+            "team": 1,
+
+            "confidence": 0.7491188049316406,
+
+            # 17 REAL keypoints = 34 real coordinates
+            "pose": np.asarray(
+                [
+                    1394.6044921875, 696.6008911132812,
+                    1396.240234375, 693.2994384765625,
+                    1394.1082763671875, 693.3896484375,
+                    1397.2283935546875, 695.7799682617188,
+                    1396.202880859375, 696.5244140625,
+                    1400.7705078125, 714.3134765625,
+                    1398.2801513671875, 714.675048828125,
+                    1403.8050537109375, 738.070556640625,
+                    1394.89697265625, 737.6936645507812,
+                    1401.3079833984375, 759.010498046875,
+                    1387.8287353515625, 758.7236938476562,
+                    1398.5947265625, 756.5250244140625,
+                    1398.9205322265625, 756.2816772460938,
+                    1396.5728759765625, 783.0386352539062,
+                    1397.8287353515625, 782.6259765625,
+                    1399.304443359375, 813.4383544921875,
+                    1400.047119140625, 812.6909790039062,
+                ],
+                dtype=np.float32,
+            ),
+
+            "pose_available": True,
+            "pose_confidence": 0.7491188049316406,
+            "court_x": 223.0,
+            "court_y": 128.0,
+            "speed": 9.0,
+            "bbox": [1374, 682, 1426, 839],
+        },
+        {
+            "id": 7,
+
+            "x": 1003.0,
+            "y": 765.0,
+
+            "vx": 1.0,
+            "vy": -1.0,
+
+            "team": 1,
+
+            "confidence": 0.8667718172073364,
+
+            # 17 REAL keypoints = 34 real coordinates
+            "pose": np.asarray(
+                [
+                    1009.9336547851562, 591.3421020507812,
+                    1012.4989013671875, 587.3309326171875,
+                    1005.9088134765625, 587.5284423828125,
+                    1016.3436279296875, 589.55029296875,
+                    999.440185546875, 589.7271118164062,
+                    1020.8662719726562, 610.7802734375,
+                    993.48486328125, 611.385009765625,
+                    1028.2177734375, 636.0443115234375,
+                    988.3562622070312, 638.3137817382812,
+                    1029.5595703125, 655.2706909179688,
+                    995.5169677734375, 657.5711059570312,
+                    1021.041015625, 663.4010009765625,
+                    1003.564453125, 664.0805053710938,
+                    1027.6651611328125, 704.0631713867188,
+                    1001.0952758789062, 704.3750610351562,
+                    1031.47607421875, 740.4593505859375,
+                    999.455810546875, 741.203857421875,
+                ],
+                dtype=np.float32,
+            ),
+
+            "pose_available": True,
+            "pose_confidence": 0.8667718172073364,
+            "court_x": 150.0,
+            "court_y": 89.0,
+            "speed": 9.0,
+            "bbox": [965, 633, 1042, 765],
+        },
+        {
+            "id": 55,
+
+            "x": 1558.0,
+            "y": 763.0,
+
+            "vx": 5.0,
+            "vy": 1.0,
+
+            "team": 1,
+
+            "confidence": 0.7849242091178894,
+
+            # 17 REAL keypoints = 34 real coordinates
+            "pose": np.asarray(
+                [
+                    1525.890380859375, 662.1864624023438,
+                    1526.4957275390625, 658.8297729492188,
+                    1524.5726318359375, 659.23291015625,
+                    1529.82958984375, 659.9005126953125,
+                    1528.0010986328125, 660.1707763671875,
+                    1538.987548828125, 672.0997314453125,
+                    1533.3729248046875, 673.0460205078125,
+                    1546.7989501953125, 690.03857421875,
+                    1534.6905517578125, 692.7548217773438,
+                    1544.920654296875, 703.1310424804688,
+                    1533.580322265625, 705.310791015625,
+                    1557.6910400390625, 702.276611328125,
+                    1554.4632568359375, 703.2734985351562,
+                    1564.47216796875, 726.8307495117188,
+                    1554.4661865234375, 727.5335083007812,
+                    1577.8428955078125, 750.7651977539062,
+                    1563.3663330078125, 750.0106201171875,
+                ],
+                dtype=np.float32,
+            ),
+
+            "pose_available": True,
+            "pose_confidence": 0.7849242091178894,
+            "court_x": 260.0,
+            "court_y": 85.0,
+            "speed": 10.49571341072154,
+            "bbox": [1516, 643, 1600, 763],
+        },
+        {
+            "id": 57,
+
+            "x": 1413.0,
+            "y": 701.0,
+
+            "vx": 5.0,
+            "vy": 1.0,
+
+            "team": 1,
+
+            "confidence": 0.0,
+
+            # No pose was detected for this player in this frame.
+            # Do NOT replace this with a synthetic pose.
+            "pose": np.asarray([], dtype=np.float32),
+
+            "pose_available": False,
+            "pose_confidence": 0.0,
+            "court_x": 237.0,
+            "court_y": 46.0,
+            "speed": 8.049844718999243,
+            "bbox": [1368, 581, 1459, 701],
+        },
+        {
+            "id": 64,
+
+            "x": 1009.0,
+            "y": 729.0,
+
+            "vx": -4.0,
+            "vy": -3.0,
+
+            "team": 1,
+
+            "confidence": 0.0,
+
+            # No pose was detected for this player in this frame.
+            # Do NOT replace this with a synthetic pose.
+            "pose": np.asarray([], dtype=np.float32),
+
+            "pose_available": False,
+            "pose_confidence": 0.0,
+            "court_x": 151.0,
+            "court_y": 67.0,
+            "speed": 9.178235124467012,
+            "bbox": [974, 567, 1044, 729],
+        }
     ]
 
     # ========================================================
-    # TEAM 1
+    # ACTUAL BALL
     # ========================================================
-
-    team_1_positions = [
-        # Front-left
-        (1040, 450),
-
-        # Front-middle
-        (1180, 300),
-
-        # Front-right
-        (1530, 400),
-
-        # Back-left
-        (1080, 780),
-
-        # Back-middle
-        (1370, 850),
-
-        # Back-right
-        (1660, 690),
-    ]
-
-    players = []
-
-    # ========================================================
-    # CREATE TEAM 0 PLAYERS
-    # ========================================================
-
-    for index, (
-        x,
-        y,
-    ) in enumerate(
-        team_0_positions
-    ):
-
-        player_id = index + 1
-
-        players.append(
-            {
-                "id": player_id,
-
-                "x": x,
-                "y": y,
-
-                "vx": (
-                    1.0
-                    + index * 0.25
-                ),
-
-                "vy": (
-                    -0.5
-                    + index * 0.15
-                ),
-
-                "team": 0,
-
-                "confidence": (
-                    0.92
-                    + (index % 4) * 0.02
-                ),
-
-                "pose":
-                    build_pose_for_player(
-                        player_id,
-                        x,
-                        y,
-                    ),
-            }
-        )
-
-    # ========================================================
-    # CREATE TEAM 1 PLAYERS
-    # ========================================================
-
-    for index, (
-        x,
-        y,
-    ) in enumerate(
-        team_1_positions
-    ):
-
-        player_id = index + 7
-
-        players.append(
-            {
-                "id": player_id,
-
-                "x": x,
-                "y": y,
-
-                "vx": (
-                    -1.0
-                    + index * 0.20
-                ),
-
-                "vy": (
-                    0.5
-                    - index * 0.12
-                ),
-
-                "team": 1,
-
-                "confidence": (
-                    0.92
-                    + (index % 4) * 0.02
-                ),
-
-                "pose":
-                    build_pose_for_player(
-                        player_id,
-                        x,
-                        y,
-                    ),
-            }
-        )
-
-    # ========================================================
-    # BALL
-    # ========================================================
-
-    # Ball is close to the net and slightly above
-    # the center of the court.
 
     ball = {
-        "x": 1010,
-        "y": 420,
+        "x": 833.0,
+        "y": 366.0,
 
-        "vx": 3.0,
-        "vy": -2.0,
+        "vx": 3.5,
+        "vy": -3.5,
 
-        "confidence": 0.98,
+        "confidence": 0.6661800742149353,
+
+        "bbox": [825, 352, 842, 380],
+        "tracking_distance": 9.899495124816895,
+        "detected": True,
     }
 
     # ========================================================
@@ -254,14 +465,9 @@ def create_sample_data():
     # ========================================================
 
     court = {
-        "width":
-            IMAGE_WIDTH,
-
-        "height":
-            IMAGE_HEIGHT,
-
-        "net_x":
-            IMAGE_WIDTH / 2,
+        "width": IMAGE_WIDTH,
+        "height": IMAGE_HEIGHT,
+        "net_x": IMAGE_WIDTH / 2,
     }
 
     return (

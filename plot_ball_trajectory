@@ -1,0 +1,31 @@
+import csv
+import matplotlib.pyplot as plt
+
+CSV_PATH = "ball_trajectory.csv"
+OUTPUT_PATH = "ball_trajectory.png"
+
+xs=[]
+ys=[]
+
+with open(CSV_PATH, newline="", encoding="utf-8") as f:
+    for row in csv.DictReader(f):
+        if row["detected"].lower() != "true":
+            continue
+        xs.append(float(row["x"]))
+        ys.append(float(row["y"]))
+
+if not xs:
+    raise RuntimeError("No real ball detections found in ball_trajectory.csv")
+
+plt.figure(figsize=(10,6))
+plt.plot(xs, ys, marker=".")
+plt.gca().invert_yaxis()
+plt.xlabel("Image X (pixels)")
+plt.ylabel("Image Y (pixels)")
+plt.title("GritSense Ball Trajectory — Actual Detections")
+plt.grid(True)
+plt.tight_layout()
+plt.savefig(OUTPUT_PATH, dpi=150)
+plt.show()
+
+print(f"Saved {OUTPUT_PATH} using {len(xs)} actual detections")
