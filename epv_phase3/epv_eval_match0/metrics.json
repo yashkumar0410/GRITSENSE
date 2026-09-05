@@ -1,0 +1,9 @@
+{
+  "mae": 0.005456984043121338,
+  "mse": 5.542644066736102e-05,
+  "rmse": 0.007444893596779004,
+  "pearson_corr": 0.9818347487686426,
+  "action_ranking_match_rate_vs_proxy_labels": 0.19438877755511022,
+  "num_samples": 998,
+  "note": "outcomes/actions are proxy labels (see epv/dataset.py, epv/action_generator.py); these metrics validate the pipeline, not tactical accuracy."
+}
