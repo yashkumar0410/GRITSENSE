@@ -17,7 +17,7 @@ from graph.graph_builder import (
 # FEATURE GRAPH TESTS
 # ============================================================
 
-def test_six_players_and_ball_create_seven_nodes():
+def test_sample_players_and_ball_create_expected_nodes():
 
     players, ball, court = (
         create_sample_data()
@@ -32,7 +32,7 @@ def test_six_players_and_ball_create_seven_nodes():
         )
     )
 
-    assert graph.num_nodes == 7
+    assert graph.num_nodes == len(players) + 1
 
 
 def test_node_feature_dimension_is_49():
@@ -52,7 +52,7 @@ def test_node_feature_dimension_is_49():
 
     assert (
         graph.x.shape
-        == (7, 49)
+        == (len(players) + 1, 49)
     )
 
     assert (
@@ -176,7 +176,7 @@ def test_missing_velocity_is_handled():
 # INTERACTION GRAPH TESTS
 # ============================================================
 
-def test_six_players_create_30_player_player_edges():
+def test_players_create_expected_player_player_edges():
 
     players, ball, court = (
         create_sample_data()
@@ -200,11 +200,11 @@ def test_six_players_create_30_player_player_edges():
         int(
             player_player_edges.sum()
         )
-        == 30
+        == len(players) * (len(players) - 1)
     )
 
 
-def test_six_players_create_12_player_ball_edges():
+def test_players_create_expected_player_ball_edges():
 
     players, ball, court = (
         create_sample_data()
@@ -228,11 +228,11 @@ def test_six_players_create_12_player_ball_edges():
         int(
             player_ball_edges.sum()
         )
-        == 12
+        == 2 * len(players)
     )
 
 
-def test_total_edge_count_is_42():
+def test_total_edge_count_matches_player_count():
 
     players, ball, court = (
         create_sample_data()
@@ -249,7 +249,7 @@ def test_total_edge_count_is_42():
 
     assert (
         graph.num_edges
-        == 42
+        == len(players) * (len(players) - 1) + 2 * len(players)
     )
 
 
@@ -270,7 +270,7 @@ def test_edge_index_shape():
 
     assert (
         graph.edge_index.shape
-        == (2, 42)
+        == (2, graph.num_edges)
     )
 
 
@@ -291,7 +291,7 @@ def test_edge_feature_shape():
 
     assert (
         graph.edge_attr.shape
-        == (42, 4)
+        == (graph.num_edges, 4)
     )
 
 

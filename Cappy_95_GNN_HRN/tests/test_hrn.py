@@ -44,11 +44,12 @@ def test_hrn_node_output_shape():
         graph.edge_index,
         graph.edge_attr,
         graph.node_type,
+        graph.node_team,
     )
 
     assert (
         output["node_embeddings"].shape
-        == (7, 32)
+        == (graph.num_nodes, 32)
     )
 
 
@@ -63,6 +64,7 @@ def test_hrn_team_output_shape():
         graph.edge_index,
         graph.edge_attr,
         graph.node_type,
+        graph.node_team,
     )
 
     assert (
@@ -82,6 +84,7 @@ def test_hrn_global_output_shape():
         graph.edge_index,
         graph.edge_attr,
         graph.node_type,
+        graph.node_team,
     )
 
     assert (
@@ -101,6 +104,7 @@ def test_hrn_outputs_are_finite():
         graph.edge_index,
         graph.edge_attr,
         graph.node_type,
+        graph.node_team,
     )
 
     assert torch.isfinite(
@@ -127,6 +131,7 @@ def test_gradient_flows_through_gat():
         graph.edge_index,
         graph.edge_attr,
         graph.node_type,
+        graph.node_team,
     )
 
     loss = (
