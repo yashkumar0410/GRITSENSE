@@ -1,0 +1,37 @@
+{
+  "data": {
+    "ball_csv": "D:\\capstone\\GRITSENSE\\Cappy_95_GNN_HRN\\ball detection\\output_test\\sample3\\ball.csv",
+    "player_json": "D:\\capstone\\GRITSENSE\\Cappy_95_GNN_HRN\\player_keypoints.json",
+    "aligned_frames": 451,
+    "detected_frames_evaluated": 319,
+    "ball_detection_coverage": 0.7073170731707317,
+    "coordinate_system": "image pixels, normalized by 1920x1080",
+    "missing_ball_frames_excluded": 132
+  },
+  "graph": {
+    "node_feature_dim": 49,
+    "edge_feature_dim": 4,
+    "finite_graphs": 319,
+    "mean_nodes": 11.68652037617555,
+    "mean_edges": 126.00626959247649
+  },
+  "spatial_feature_quality": {
+    "metric": "normalized player-ball edge distance",
+    "mean": 0.34934326877897287,
+    "std": 0.13477187972819463,
+    "ball_coordinate_max_abs_feature_error": 2.958156442023352e-08,
+    "interpretation": "Structural proxy only; no spatial ground-truth target is present."
+  },
+  "relational_feature_quality": {
+    "metric": "directed-edge reverse consistency",
+    "checks": 40196,
+    "matches": 40196,
+    "rate": 1.0,
+    "interpretation": "Structural proxy only; no ground-truth relation labels are present."
+  },
+  "limitations": [
+    "No real activity labels are present for these frames, so supervised training and classification metrics are unavailable.",
+    "No trained checkpoint was available for learned embedding evaluation.",
+    "Old ball-detection data was not available, so direct old-vs-new comparison was not performed."
+  ]
+}
