@@ -1,43 +1,55 @@
 {
-  "mae": 0.014564507640898228,
-  "mse": 0.00034123906516470015,
-  "rmse": 0.01847265723074783,
-  "pearson_corr": 0.9853354074437789,
-  "action_ranking_match_rate_vs_proxy_labels": 0.33783783783783783,
-  "num_samples": 148,
+  "mae": 0.006636261940002441,
+  "mse": 6.810069316998124e-05,
+  "rmse": 0.008252314412937818,
+  "pearson_corr": 0.794754409699023,
+  "action_ranking_match_rate_vs_proxy_labels": 0.18030050083472454,
+  "num_samples": 599,
   "num_unique_outcomes": 2,
   "per_action": {
+    "left_attack": {
+      "count": 148,
+      "mean_predicted_epv": 0.10103,
+      "mean_actual_outcome": 0.105556,
+      "mae": 0.006035
+    },
     "left_receive": {
-      "count": 50,
-      "mean_predicted_epv": 0.285777,
-      "mean_actual_outcome": 0.3,
-      "mae": 0.020084
+      "count": 60,
+      "mean_predicted_epv": 0.104219,
+      "mean_actual_outcome": 0.105556,
+      "mae": 0.00452
+    },
+    "left_set": {
+      "count": 80,
+      "mean_predicted_epv": 0.102046,
+      "mean_actual_outcome": 0.105556,
+      "mae": 0.005201
     },
     "right_attack": {
-      "count": 47,
-      "mean_predicted_epv": 0.092787,
-      "mean_actual_outcome": 0.093333,
-      "mae": 0.012143
+      "count": 57,
+      "mean_predicted_epv": 0.118348,
+      "mean_actual_outcome": 0.125,
+      "mae": 0.007608
     },
     "right_receive": {
-      "count": 9,
-      "mean_predicted_epv": 0.092916,
-      "mean_actual_outcome": 0.093333,
-      "mae": 0.005167
+      "count": 135,
+      "mean_predicted_epv": 0.118143,
+      "mean_actual_outcome": 0.125,
+      "mae": 0.007694
     },
     "right_set": {
-      "count": 42,
-      "mean_predicted_epv": 0.083726,
-      "mean_actual_outcome": 0.093333,
-      "mae": 0.012717
+      "count": 119,
+      "mean_predicted_epv": 0.118646,
+      "mean_actual_outcome": 0.125,
+      "mae": 0.007751
     }
   },
   "provenance": {
     "dataset": "epv_dataset_match0.npz",
     "checkpoint": "epv_model_match0.pt",
-    "state_dim": 69,
+    "state_dim": 76,
     "num_actions": 6,
-    "generated_at": "2026-09-07T11:57:57+00:00"
+    "generated_at": "2026-09-07T16:39:23+00:00"
   },
   "warning": "Only 2 unique outcome values in this dataset: pearson_corr and the low losses are NOT evidence of model quality (a constant-per-team predictor achieves the same). Regenerate the dataset from a longer, multi-rally log to get meaningful metrics.",
   "note": "outcomes/actions are proxy labels (see epv/dataset.py, epv/action_generator.py); these metrics validate the pipeline, not tactical accuracy."

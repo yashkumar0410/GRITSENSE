@@ -1,5 +1,6 @@
 import argparse
 import cv2
+import os
 import torch
 from ultralytics import YOLO
 import numpy as np
@@ -18,7 +19,10 @@ import json
 #      duplicating any detection/tracking/homography code.
 parser = argparse.ArgumentParser(description="GritSense perception pipeline")
 parser.add_argument("--video", default="sample3.mp4", help="input video path")
-parser.add_argument("--court-json", default="cp.json", help="per-frame court corner points")
+court_json_default = next(
+    (p for p in ("annotations.json", "../annotations.json", "cp.json") if os.path.exists(p)), "annotations.json"
+)
+parser.add_argument("--court-json", default=court_json_default, help="per-frame court corner points")
 parser.add_argument("--model", default="player_detection.pt", help="player detection/tracking weights")
 parser.add_argument("--log-out", default=None, help="if set, dump per-frame player state log (JSON) for EPV pipeline")
 parser.add_argument("--ball-log-out", default=None, help="if set, dump per-frame court-space ball log (JSON) for EPV pipeline (enables ball features in the EPV state vector)")
@@ -31,15 +35,30 @@ args, _unknown = parser.parse_known_args()
 player_model = YOLO(args.model)
 
 # EPV INTEGRATION: optional ball detection model (additive; only loaded when
-# --ball-log-out is requested, so default runs are unchanged).
+# --ball-log-out is requested, so default runs are unchanged). ball.pt lives
+# in the repo root, not in epv_phase3/, so fall back to the parent directory.
 ball_model = None
 if args.ball_log_out is not None:
-    ball_model = YOLO(args.ball_model or "ball.pt")
+    ball_weights = args.ball_model
+    if ball_weights is None:
+        ball_weights = next(
+            (p for p in ("ball.pt", "../ball.pt") if os.path.exists(p)), "ball.pt"
+        )
+    ball_model = YOLO(ball_weights)
 
 with open(args.court_json, "r", encoding="utf-8") as f:
     court_points_by_frame = json.load(f)
 
+# Auto-detect resolution of court annotations (1080p annotations vs 720p/480p video)
+max_ann_x = max((max(pt[0] for pt in pts) for pts in court_points_by_frame.values() if pts), default=1280)
+ann_ref_w = 1920.0 if max_ann_x > 1280 else 1280.0
+ann_ref_h = 1080.0 if max_ann_x > 1280 else 720.0
+
 cap = cv2.VideoCapture(args.video)
+vid_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1280.0
+vid_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 720.0
+ann_scale_x = vid_w / ann_ref_w
+ann_scale_y = vid_h / ann_ref_h
 
 fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 
@@ -168,6 +187,21 @@ while cap.isOpened():
 
     h_frame, w_frame = frame.shape[:2]
     annotated_frame = frame.copy()
+
+    # Update homography H at the START of the frame using scaled corners
+    frame_corner_points = court_points_by_frame.get(str(frame_idx), [])
+    if len(frame_corner_points) >= 4:
+        top_left = (int(frame_corner_points[0][0] * ann_scale_x), int(frame_corner_points[0][1] * ann_scale_y))
+        top_right = (int(frame_corner_points[1][0] * ann_scale_x), int(frame_corner_points[1][1] * ann_scale_y))
+        bottom_right = (int(frame_corner_points[2][0] * ann_scale_x), int(frame_corner_points[2][1] * ann_scale_y))
+        bottom_left = (int(frame_corner_points[3][0] * ann_scale_x), int(frame_corner_points[3][1] * ann_scale_y))
+
+        frame_pts = np.array(
+            [top_left, top_right, bottom_right, bottom_left],
+            dtype=np.float32,
+        )
+        H, _ = cv2.findHomography(frame_pts, court_pts)
+
     results = player_model.track(
         frame,
         persist=True,
@@ -358,19 +392,7 @@ while cap.isOpened():
                 "speed_mps": round(ball_speed, 4),
             }
 
-    frame_corner_points = court_points_by_frame.get(str(frame_idx), [])
-    if len(frame_corner_points) >= 4:
-        top_left = tuple(map(int, frame_corner_points[0]))
-        top_right = tuple(map(int, frame_corner_points[1]))
-        bottom_right = tuple(map(int, frame_corner_points[2]))
-        bottom_left = tuple(map(int, frame_corner_points[3]))
-
-        frame_pts = np.array(
-            [top_left, top_right, bottom_right, bottom_left],
-            dtype=np.float32,
-        )
-        H, _ = cv2.findHomography(frame_pts, court_pts)
-
+    if H is not None and len(frame_corner_points) >= 4:
         # 1=top_left, 2=top_right, 3=bottom_right, 4=bottom_left
         labeled_points = [
             (1, top_left),

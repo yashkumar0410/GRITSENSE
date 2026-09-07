@@ -1,9 +1,9 @@
 {
-  "num_samples": 148,
+  "num_samples": 599,
   "num_rallies": 1,
-  "state_dim": 69,
-  "has_ball_features": false,
-  "ball_log_path": null,
+  "state_dim": 76,
+  "has_ball_features": true,
+  "ball_log_path": "match0_ball_log.json",
   "num_actions": 6,
   "feature_names": [
     "left_p0_present",
@@ -74,28 +74,39 @@
     "right_spread_y",
     "right_mean_speed",
     "right_num_players",
-    "rally_progress"
+    "rally_progress",
+    "ball_present",
+    "ball_x",
+    "ball_y",
+    "ball_speed",
+    "ball_dist_left",
+    "ball_dist_right",
+    "ball_side"
   ],
-  "source_player_log": "match0_log.json",
+  "source_player_log": "match0_log_fixed.json",
   "log_quality": {
-    "num_player_records": 1340,
-    "num_frames": 149,
-    "players_per_frame_mean": 8.993,
-    "frac_x_in_court": 0.7194,
-    "frac_y_in_court": 0.0127,
-    "frac_both_in_court": 0.0127,
+    "num_player_records": 5788,
+    "num_frames": 600,
+    "players_per_frame_mean": 9.647,
+    "frac_x_in_court": 0.8521,
+    "frac_y_in_court": 0.7364,
+    "frac_both_in_court": 0.6106,
     "x_range_m": [
-      -13.02,
-      17.46
+      -4.98,
+      23.7
     ],
     "y_range_m": [
-      -26.88,
-      1.2
+      -8.28,
+      12.06
     ],
-    "warning": "Most coordinates fall OUTSIDE the court; the homography/court-point mapping in main.py is likely wrong for this clip. Fix before training, or expect a large fraction of clipped (zero-variance) state features."
+    "warning": null
   },
   "n_unique_outcomes": 2,
-  "game_state_counts": {},
+  "game_state_counts": {
+    "dead_ball": 540,
+    "serve_prep": 26,
+    "live_rally": 34
+  },
   "outcome_is_proxy": true,
   "proxy_outcome_definition": "Per-team normalized net court-territory gain (toward the opponent baseline) between a rally's first and last logged frame. NOT a true point/rally-win label -- see epv/dataset.py module docstring."
 }
