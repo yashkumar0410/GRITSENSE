@@ -1,9 +1,44 @@
 {
-  "mae": 0.005456984043121338,
-  "mse": 5.542644066736102e-05,
-  "rmse": 0.007444893596779004,
-  "pearson_corr": 0.9818347487686426,
-  "action_ranking_match_rate_vs_proxy_labels": 0.19438877755511022,
-  "num_samples": 998,
+  "mae": 0.014564507640898228,
+  "mse": 0.00034123906516470015,
+  "rmse": 0.01847265723074783,
+  "pearson_corr": 0.9853354074437789,
+  "action_ranking_match_rate_vs_proxy_labels": 0.33783783783783783,
+  "num_samples": 148,
+  "num_unique_outcomes": 2,
+  "per_action": {
+    "left_receive": {
+      "count": 50,
+      "mean_predicted_epv": 0.285777,
+      "mean_actual_outcome": 0.3,
+      "mae": 0.020084
+    },
+    "right_attack": {
+      "count": 47,
+      "mean_predicted_epv": 0.092787,
+      "mean_actual_outcome": 0.093333,
+      "mae": 0.012143
+    },
+    "right_receive": {
+      "count": 9,
+      "mean_predicted_epv": 0.092916,
+      "mean_actual_outcome": 0.093333,
+      "mae": 0.005167
+    },
+    "right_set": {
+      "count": 42,
+      "mean_predicted_epv": 0.083726,
+      "mean_actual_outcome": 0.093333,
+      "mae": 0.012717
+    }
+  },
+  "provenance": {
+    "dataset": "epv_dataset_match0.npz",
+    "checkpoint": "epv_model_match0.pt",
+    "state_dim": 69,
+    "num_actions": 6,
+    "generated_at": "2026-09-07T11:57:57+00:00"
+  },
+  "warning": "Only 2 unique outcome values in this dataset: pearson_corr and the low losses are NOT evidence of model quality (a constant-per-team predictor achieves the same). Regenerate the dataset from a longer, multi-rally log to get meaningful metrics.",
   "note": "outcomes/actions are proxy labels (see epv/dataset.py, epv/action_generator.py); these metrics validate the pipeline, not tactical accuracy."
 }

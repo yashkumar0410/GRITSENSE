@@ -12,6 +12,7 @@ Usage
 import argparse
 import json
 import os
+from datetime import datetime, timezone
 
 import numpy as np
 import torch
@@ -38,6 +39,30 @@ def regression_metrics(y_true, y_pred):
     else:
         corr = float("nan")  # not meaningful for a constant/degenerate split
     return {"mae": mae, "mse": mse, "rmse": rmse, "pearson_corr": corr}
+
+
+def per_action_metrics(y_true, y_pred, actions):
+    """
+    Per-action breakdown: how many samples of each action exist and what the
+    model predicts for them. This surfaces degenerate label sets (e.g. an
+    action that never occurs, or an outcome that is constant per action).
+    """
+    rows = {}
+    for i, a_idx in enumerate(actions):
+        name = ACTIONS[int(a_idx)]
+        rows.setdefault(name, {"count": 0, "pred": [], "actual": []})
+        rows[name]["count"] += 1
+        rows[name]["pred"].append(float(y_pred[i]))
+        rows[name]["actual"].append(float(y_true[i]))
+    return {
+        name: {
+            "count": r["count"],
+            "mean_predicted_epv": round(float(np.mean(r["pred"])), 6),
+            "mean_actual_outcome": round(float(np.mean(r["actual"])), 6),
+            "mae": round(float(np.mean(np.abs(np.array(r["pred"]) - np.array(r["actual"])))), 6),
+        }
+        for name, r in sorted(rows.items())
+    }
 
 
 def action_ranking_quality(model, states, mean, std, logged_actions):
@@ -89,6 +114,23 @@ def evaluate(args):
     match_rate, all_values = action_ranking_quality(model, states, mean, std, actions)
     metrics["action_ranking_match_rate_vs_proxy_labels"] = match_rate
     metrics["num_samples"] = int(len(outcomes))
+    metrics["num_unique_outcomes"] = int(np.unique(outcomes).size)
+    metrics["per_action"] = per_action_metrics(outcomes, preds, actions)
+    metrics["provenance"] = {
+        "dataset": str(args.dataset),
+        "checkpoint": str(args.checkpoint),
+        "state_dim": int(states.shape[1]),
+        "num_actions": int(model.num_actions),
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    if metrics["num_unique_outcomes"] <= 2:
+        metrics["warning"] = (
+            f"Only {metrics['num_unique_outcomes']} unique outcome values in this "
+            "dataset: pearson_corr and the low losses are NOT evidence of model "
+            "quality (a constant-per-team predictor achieves the same). Regenerate "
+            "the dataset from a longer, multi-rally log to get meaningful metrics."
+        )
+        print(f"[EPV evaluate][WARN] {metrics['warning']}")
     metrics["note"] = (
         "outcomes/actions are proxy labels (see epv/dataset.py, epv/action_generator.py); "
         "these metrics validate the pipeline, not tactical accuracy."
@@ -98,7 +140,7 @@ def evaluate(args):
         json.dump(metrics, f, indent=2)
     print(json.dumps(metrics, indent=2))
 
-    _try_plots(outcomes, preds, ckpt, args.out_dir)
+    _try_plots(outcomes, preds, ckpt, args.out_dir, actions)
     return metrics
 
 
@@ -127,7 +169,7 @@ def _plot_loss_history(history_path, out_dir):
     plt.close()
 
 
-def _try_plots(y_true, y_pred, ckpt, out_dir):
+def _try_plots(y_true, y_pred, ckpt, out_dir, actions=None):
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -147,6 +189,24 @@ def _try_plots(y_true, y_pred, ckpt, out_dir):
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, "predicted_vs_actual.png"), dpi=150)
     plt.close()
+
+    # per-action breakdown: mean predicted vs mean actual per action class
+    if actions is not None:
+        per_action = per_action_metrics(y_true, y_pred, actions)
+        names = list(per_action.keys())
+        means_pred = [per_action[n]["mean_predicted_epv"] for n in names]
+        means_act = [per_action[n]["mean_actual_outcome"] for n in names]
+        x = np.arange(len(names))
+        plt.figure(figsize=(8, 4))
+        plt.bar(x - 0.2, means_act, width=0.4, label="actual (proxy)")
+        plt.bar(x + 0.2, means_pred, width=0.4, label="predicted EPV")
+        plt.xticks(x, names, rotation=30, ha="right")
+        plt.ylabel("value")
+        plt.title("Per-action mean EPV vs actual")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(os.path.join(out_dir, "per_action_breakdown.png"), dpi=150)
+        plt.close()
 
 
 def build_argparser():

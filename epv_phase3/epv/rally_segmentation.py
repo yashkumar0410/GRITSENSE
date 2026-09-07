@@ -29,8 +29,16 @@ Proxy rally-segmentation strategy (documented, replaceable):
 
 from epv.utils import rows_to_frames
 
+# Game-state labels (proxy definitions, see assign_game_states)
+STATE_DEAD = "dead_ball"      # no ball tracked / play not visibly live
+STATE_SERVE = "serve_prep"    # ball tracked but (near-)stationary -> serve prep
+STATE_LIVE = "live_rally"     # ball tracked and moving -> rally in play
 
-def segment_rallies(rows, max_frame_gap=15, min_rally_frames=10):
+# A ball slower than this (m/s) is considered "not in play" by the proxy.
+_BALL_LIVE_SPEED_MPS = 1.0
+
+
+def segment_rallies(rows, max_frame_gap=15, min_rally_frames=10, ball_by_frame=None):
     """
     Parameters
     ----------
@@ -43,12 +51,16 @@ def segment_rallies(rows, max_frame_gap=15, min_rally_frames=10):
     min_rally_frames : int
         Rallies shorter than this (in frames) are dropped as noise
         (e.g. a single player flickering in/out of detection).
+    ball_by_frame : dict[int, dict], optional
+        Mapping frame_idx -> {"x_m", "y_m", "speed_mps"} from
+        epv.utils.load_ball_log. When given, each frame record gets a
+        "ball" key so state_builder can use ball features.
 
     Returns
     -------
     list[list[dict]]
         Each element is a rally: an ordered list of per-frame records
-        {"frame_idx": int, "players": [row, row, ...]}.
+        {"frame_idx": int, "players": [row, row, ...], "ball": dict|None}.
     """
     frames_dict = rows_to_frames(rows)
     frame_indices = list(frames_dict.keys())
@@ -67,10 +79,42 @@ def segment_rallies(rows, max_frame_gap=15, min_rally_frames=10):
                 rallies.append(current_rally)
             current_rally = []
 
-        current_rally.append({"frame_idx": idx, "players": players})
+        record = {"frame_idx": idx, "players": players}
+        if ball_by_frame is not None:
+            record["ball"] = ball_by_frame.get(idx)
+        current_rally.append(record)
         prev_idx = idx
 
     if len(current_rally) >= min_rally_frames:
         rallies.append(current_rally)
 
     return rallies
+
+
+def assign_game_states(rally):
+    """
+    PROXY game-state labelling for one rally (documented, replaceable).
+
+    The perception pipeline has no whistle/serve/point signal. With a ball
+    log attached, the cheapest defensible proxy for "is the ball in play"
+    is its speed:
+        - no ball tracked that frame          -> "dead_ball"
+        - ball tracked, speed < 1 m/s         -> "serve_prep" (ball being
+                                                 held/tossed for a serve)
+        - ball tracked, speed >= 1 m/s        -> "live_rally"
+
+    Without a ball log every frame is labelled "dead_ball" (i.e. unknown),
+    and callers should treat the labels as unavailable rather than real.
+
+    Returns a list of labels, one per frame of the rally.
+    """
+    labels = []
+    for frame_record in rally:
+        ball = frame_record.get("ball")
+        if not ball:
+            labels.append(STATE_DEAD)
+        elif ball.get("speed_mps", 0.0) < _BALL_LIVE_SPEED_MPS:
+            labels.append(STATE_SERVE)
+        else:
+            labels.append(STATE_LIVE)
+    return labels

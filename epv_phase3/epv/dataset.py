@@ -32,9 +32,16 @@ Phase 2 references) become available — no other file needs to change.
 import numpy as np
 
 from epv.action_generator import ACTIONS, infer_action_from_transition, NUM_ACTIONS
-from epv.rally_segmentation import segment_rallies
-from epv.state_builder import STATE_DIM, build_state, feature_names
-from epv.utils import COURT_LENGTH_M, TEAMS, load_frame_log, save_json
+from epv.rally_segmentation import assign_game_states, segment_rallies
+from epv.state_builder import build_state, feature_names, state_dim
+from epv.utils import (
+    COURT_LENGTH_M,
+    TEAMS,
+    load_ball_log,
+    load_frame_log,
+    log_quality_report,
+    save_json,
+)
 
 # team associated with each action index, e.g. left_receive/left_set/left_attack -> "left"
 ACTION_TEAM_LOOKUP = [a.split("_")[0] for a in ACTIONS]
@@ -70,7 +77,14 @@ def compute_proxy_outcome(rally):
     return outcomes
 
 
-def generate_dataset(log_path, out_path, max_frame_gap=15, min_rally_frames=10, limit=None):
+def generate_dataset(
+    log_path,
+    out_path,
+    max_frame_gap=15,
+    min_rally_frames=10,
+    limit=None,
+    ball_log_path=None,
+):
     """
     Build and save the (state, action, outcome) dataset.
 
@@ -83,6 +97,10 @@ def generate_dataset(log_path, out_path, max_frame_gap=15, min_rally_frames=10, 
     limit : int, optional
         Only use the first `limit` rows of the log (quick test mode, mirrors
         the perception pipeline's own `--limit` flag).
+    ball_log_path : str, optional
+        Path to a court-space ball log (see epv.utils.load_ball_log). When
+        given, the state vectors are ball-augmented (state_dim 76 instead
+        of 69) and the metadata records `"has_ball_features": true`.
 
     Returns
     -------
@@ -92,16 +110,35 @@ def generate_dataset(log_path, out_path, max_frame_gap=15, min_rally_frames=10, 
     if limit is not None:
         rows = rows[:limit]
 
-    rallies = segment_rallies(rows, max_frame_gap=max_frame_gap, min_rally_frames=min_rally_frames)
+    quality = log_quality_report(rows)
+    if quality["warning"]:
+        print(f"[EPV dataset][WARN] {quality['warning']}")
+        print(f"[EPV dataset] log quality: {quality}")
+
+    ball_by_frame = None
+    include_ball = ball_log_path is not None
+    if include_ball:
+        ball_by_frame = load_ball_log(ball_log_path)
+        print(f"[EPV dataset] ball log loaded: {len(ball_by_frame)} frames with ball detections")
+
+    rallies = segment_rallies(
+        rows, max_frame_gap=max_frame_gap, min_rally_frames=min_rally_frames,
+        ball_by_frame=ball_by_frame,
+    )
 
     states, actions, outcomes, rally_ids, teams = [], [], [], [], []
+    game_state_counts = {}
 
     for rally_id, rally in enumerate(rallies):
         proxy = compute_proxy_outcome(rally)
         n = len(rally)
+        labels = assign_game_states(rally) if include_ball else None
+        if labels is not None:
+            for lab in labels:
+                game_state_counts[lab] = game_state_counts.get(lab, 0) + 1
         for t in range(n - 1):
             progress = t / (n - 1) if n > 1 else 0.0
-            state = build_state(rally[t], progress)
+            state = build_state(rally[t], progress, include_ball=include_ball)
             action = infer_action_from_transition(rally[t], rally[t + 1])
             team = ACTION_TEAM_LOOKUP[action]
             outcome = proxy[team]
@@ -136,13 +173,27 @@ def generate_dataset(log_path, out_path, max_frame_gap=15, min_rally_frames=10, 
         teams=data["teams"],
     )
 
+    n_unique_outcomes = int(np.unique(data["outcomes"]).size)
+    if n_unique_outcomes <= 2:
+        print(
+            f"[EPV dataset][WARN] only {n_unique_outcomes} unique outcome values "
+            "in the dataset -- proxy labels are degenerate for this log; the "
+            "model cannot learn more than this constant-per-team mapping."
+        )
+
     save_json(
         {
             "num_samples": int(len(actions)),
             "num_rallies": int(len(rallies)),
-            "state_dim": STATE_DIM,
+            "state_dim": state_dim(include_ball),
+            "has_ball_features": include_ball,
+            "ball_log_path": str(ball_log_path) if include_ball else None,
             "num_actions": NUM_ACTIONS,
-            "feature_names": feature_names(),
+            "feature_names": feature_names(include_ball),
+            "source_player_log": str(log_path),
+            "log_quality": quality,
+            "n_unique_outcomes": n_unique_outcomes,
+            "game_state_counts": game_state_counts,
             "outcome_is_proxy": True,
             "proxy_outcome_definition": (
                 "Per-team normalized net court-territory gain (toward the "
