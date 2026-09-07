@@ -1,3 +1,7 @@
+import csv
+import json
+from pathlib import Path
+
 import numpy as np
 
 
@@ -475,3 +479,99 @@ def create_sample_data():
         ball,
         court,
     )
+
+
+# ============================================================
+# RUNTIME REAL-DATA SAMPLE
+# ============================================================
+
+def _load_real_sample_data(frame_id=204):
+    """Load one aligned frame from the detector and court outputs."""
+    project_root = Path(__file__).resolve().parents[1]
+    ball_path = project_root / "ball detection" / "output_test" / "sample3" / "ball.csv"
+    player_path = project_root / "player_keypoints.json"
+    court_path = project_root.parent / "epv_phase3" / "annotations.json"
+
+    with ball_path.open("r", newline="", encoding="utf-8") as file:
+        ball_rows = {
+            int(row["Frame"]): row
+            for row in csv.DictReader(file)
+        }
+
+    with player_path.open("r", encoding="utf-8") as file:
+        player_frames = json.load(file)
+
+    with court_path.open("r", encoding="utf-8") as file:
+        court_frames = json.load(file)
+
+    valid_frames = [
+        current_frame
+        for current_frame, row in ball_rows.items()
+        if int(row["Visibility"]) == 1
+        and float(row["X"]) >= 0
+        and float(row["Y"]) >= 0
+        and str(current_frame) in player_frames
+    ]
+    if not valid_frames:
+        raise RuntimeError("No aligned frames with a valid ball and players were found.")
+
+    if frame_id not in valid_frames:
+        frame_id = valid_frames[0]
+
+    ball_row = ball_rows[frame_id]
+    ball = {
+        "x": float(ball_row["X"]),
+        "y": float(ball_row["Y"]),
+        "radius": float(ball_row["Radius"]),
+        "confidence": 1.0,
+        "detected": True,
+    }
+
+    raw_players = player_frames[str(frame_id)]
+    players = []
+    for player_id, player_info in raw_players.items():
+        keypoints = player_info.get("keypoints", [])
+        pose = np.asarray(keypoints, dtype=np.float32)
+        if pose.size != 34:
+            pose = np.asarray([], dtype=np.float32)
+
+        players.append({
+            "id": int(player_id),
+            "x": float(player_info.get("image_x", 0.0)),
+            "y": float(player_info.get("image_y", 0.0)),
+            "vx": float(player_info.get("vx", 0.0)),
+            "vy": float(player_info.get("vy", 0.0)),
+            "team": player_info.get("team"),
+            "confidence": float(player_info.get("pose_confidence", 0.0)),
+            "pose": pose,
+            "pose_available": bool(player_info.get("pose_available", False)) and pose.size == 34,
+            "pose_confidence": float(player_info.get("pose_confidence", 0.0)),
+        })
+
+    if not any(player["team"] in (0, 1) for player in players):
+        players.sort(key=lambda player: player["x"])
+        midpoint = len(players) // 2
+        for index, player in enumerate(players):
+            player["team"] = 0 if index < midpoint else 1
+
+    court_points = court_frames.get(str(frame_id), [])
+    if court_points:
+        x_values = [float(point[0]) for point in court_points]
+        y_values = [float(point[1]) for point in court_points]
+        net_x = (min(x_values) + max(x_values)) / 2.0
+    else:
+        net_x = IMAGE_WIDTH / 2.0
+
+    court = {
+        "width": IMAGE_WIDTH,
+        "height": IMAGE_HEIGHT,
+        "net_x": net_x,
+        "court_points": court_points,
+    }
+
+    return players, ball, court
+
+
+def create_sample_data(frame_id=204):
+    """Return one real, aligned graph input frame from the workspace data."""
+    return _load_real_sample_data(frame_id)
