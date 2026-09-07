@@ -1,43 +1,43 @@
 {
-  "mae": 0.014564507640898228,
-  "mse": 0.00034123906516470015,
-  "rmse": 0.01847265723074783,
-  "pearson_corr": 0.9853354074437789,
+  "mae": 0.03374723717570305,
+  "mse": 0.0018083751201629639,
+  "rmse": 0.042524994064231963,
+  "pearson_corr": 0.9132535766260376,
   "action_ranking_match_rate_vs_proxy_labels": 0.33783783783783783,
   "num_samples": 148,
   "num_unique_outcomes": 2,
   "per_action": {
     "left_receive": {
       "count": 50,
-      "mean_predicted_epv": 0.285777,
+      "mean_predicted_epv": 0.255832,
       "mean_actual_outcome": 0.3,
-      "mae": 0.020084
+      "mae": 0.046538
     },
     "right_attack": {
       "count": 47,
-      "mean_predicted_epv": 0.092787,
+      "mean_predicted_epv": 0.108807,
       "mean_actual_outcome": 0.093333,
-      "mae": 0.012143
+      "mae": 0.024763
     },
     "right_receive": {
       "count": 9,
-      "mean_predicted_epv": 0.092916,
+      "mean_predicted_epv": 0.103033,
       "mean_actual_outcome": 0.093333,
-      "mae": 0.005167
+      "mae": 0.01508
     },
     "right_set": {
       "count": 42,
-      "mean_predicted_epv": 0.083726,
+      "mean_predicted_epv": 0.117031,
       "mean_actual_outcome": 0.093333,
-      "mae": 0.012717
+      "mae": 0.032574
     }
   },
   "provenance": {
-    "dataset": "epv_dataset_match0.npz",
-    "checkpoint": "epv_model_match0.pt",
-    "state_dim": 69,
+    "dataset": "epv_eval_ball_demo/epv_dataset_ball.npz",
+    "checkpoint": "epv_eval_ball_demo/epv_model_ball.pt",
+    "state_dim": 76,
     "num_actions": 6,
-    "generated_at": "2026-09-07T11:57:57+00:00"
+    "generated_at": "2026-09-07T11:58:23+00:00"
   },
   "warning": "Only 2 unique outcome values in this dataset: pearson_corr and the low losses are NOT evidence of model quality (a constant-per-team predictor achieves the same). Regenerate the dataset from a longer, multi-rally log to get meaningful metrics.",
   "note": "outcomes/actions are proxy labels (see epv/dataset.py, epv/action_generator.py); these metrics validate the pipeline, not tactical accuracy."

@@ -1,9 +1,9 @@
 {
   "num_samples": 148,
   "num_rallies": 1,
-  "state_dim": 69,
-  "has_ball_features": false,
-  "ball_log_path": null,
+  "state_dim": 76,
+  "has_ball_features": true,
+  "ball_log_path": "epv_eval_ball_demo/ball_log_synthetic.json",
   "num_actions": 6,
   "feature_names": [
     "left_p0_present",
@@ -74,7 +74,14 @@
     "right_spread_y",
     "right_mean_speed",
     "right_num_players",
-    "rally_progress"
+    "rally_progress",
+    "ball_present",
+    "ball_x",
+    "ball_y",
+    "ball_speed",
+    "ball_dist_left",
+    "ball_dist_right",
+    "ball_side"
   ],
   "source_player_log": "match0_log.json",
   "log_quality": {
@@ -95,7 +102,9 @@
     "warning": "Most coordinates fall OUTSIDE the court; the homography/court-point mapping in main.py is likely wrong for this clip. Fix before training, or expect a large fraction of clipped (zero-variance) state features."
   },
   "n_unique_outcomes": 2,
-  "game_state_counts": {},
+  "game_state_counts": {
+    "live_rally": 149
+  },
   "outcome_is_proxy": true,
   "proxy_outcome_definition": "Per-team normalized net court-territory gain (toward the opponent baseline) between a rally's first and last logged frame. NOT a true point/rally-win label -- see epv/dataset.py module docstring."
 }

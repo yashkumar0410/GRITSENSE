@@ -21,12 +21,20 @@ parser.add_argument("--video", default="sample3.mp4", help="input video path")
 parser.add_argument("--court-json", default="cp.json", help="per-frame court corner points")
 parser.add_argument("--model", default="player_detection.pt", help="player detection/tracking weights")
 parser.add_argument("--log-out", default=None, help="if set, dump per-frame player state log (JSON) for EPV pipeline")
+parser.add_argument("--ball-log-out", default=None, help="if set, dump per-frame court-space ball log (JSON) for EPV pipeline (enables ball features in the EPV state vector)")
+parser.add_argument("--ball-model", default=None, help="ball detection weights (default: ball.pt when --ball-log-out is set)")
 parser.add_argument("--limit", type=int, default=None, help="process only the first N frames (quick test mode)")
 parser.add_argument("--no-display", action="store_true", help="disable cv2.imshow (headless mode)")
 args, _unknown = parser.parse_known_args()
 # ---------------------------------------------------------------------------
 
 player_model = YOLO(args.model)
+
+# EPV INTEGRATION: optional ball detection model (additive; only loaded when
+# --ball-log-out is requested, so default runs are unchanged).
+ball_model = None
+if args.ball_log_out is not None:
+    ball_model = YOLO(args.ball_model or "ball.pt")
 
 with open(args.court_json, "r", encoding="utf-8") as f:
     court_points_by_frame = json.load(f)
@@ -148,6 +156,9 @@ spatial_tracker = SpatialTeamTracker()
 # EPV INTEGRATION: per-frame log of player state, reusing values already
 # computed below (court-space position in metres + speed + team).
 frame_log = [] if args.log_out else None
+# EPV INTEGRATION: per-frame court-space ball log (only when --ball-log-out).
+ball_frame_log = {} if args.ball_log_out else None
+prev_ball = None  # (frame_idx, x_m, y_m) for the ball speed calculation
 px_per_meter = court_w / actual_width  # same scale used for speed calc below
 
 while cap.isOpened():
@@ -310,6 +321,43 @@ while cap.isOpened():
                             (x1_text, y1_rect + 32),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 2)
 
+    # EPV INTEGRATION: optional per-frame ball detection -> court-space ball
+    # log. Uses the most confident ball detection, mapped through the same
+    # homography as the players. Nothing here touches the player pipeline.
+    if ball_frame_log is not None and ball_model is not None:
+        ball_results = ball_model.predict(frame, conf=0.25, verbose=False, device=device)
+        best = None
+        for br in ball_results:
+            if br.boxes is None:
+                continue
+            for b in br.boxes:
+                conf = float(b.conf[0])
+                if best is None or conf > best[0]:
+                    x1b, y1b, x2b, y2b = b.xyxy[0].tolist()
+                    best = (conf, (x1b + x2b) / 2.0, (y1b + y2b) / 2.0)
+
+        if best is not None and H is not None:
+            _conf, bx, by = best
+            mapped = cv2.perspectiveTransform(
+                np.array([[[bx, by]]], dtype=np.float32), H
+            )
+            bmx, bmy = float(mapped[0][0][0]), float(mapped[0][0][1])
+            bx_m = bmx / px_per_meter
+            by_m = bmy / (court_h / actual_height)
+
+            ball_speed = 0.0
+            if prev_ball is not None and frame_idx - prev_ball[0] == 1:
+                ball_speed = float(
+                    np.hypot(bx_m - prev_ball[1], by_m - prev_ball[2]) * fps
+                )
+            prev_ball = (frame_idx, bx_m, by_m)
+
+            ball_frame_log[int(frame_idx)] = {
+                "x_m": round(bx_m, 4),
+                "y_m": round(by_m, 4),
+                "speed_mps": round(ball_speed, 4),
+            }
+
     frame_corner_points = court_points_by_frame.get(str(frame_idx), [])
     if len(frame_corner_points) >= 4:
         top_left = tuple(map(int, frame_corner_points[0]))
@@ -395,3 +443,8 @@ if frame_log is not None:
     with open(args.log_out, "w", encoding="utf-8") as f:
         json.dump(frame_log, f)
     print(f"[EPV] wrote {len(frame_log)} player-frame records to {args.log_out}")
+
+if ball_frame_log is not None:
+    with open(args.ball_log_out, "w", encoding="utf-8") as f:
+        json.dump(ball_frame_log, f)
+    print(f"[EPV] wrote {len(ball_frame_log)} ball-frame records to {args.ball_log_out}")
