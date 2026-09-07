@@ -6,7 +6,7 @@ import json
 
 player_model = YOLO("player_detection.pt")
 
-with open("cp.json", "r", encoding="utf-8") as f:
+with open("annotations.json", "r", encoding="utf-8") as f:
     court_points_by_frame = json.load(f)
 
 cap = cv2.VideoCapture("sample3.mp4")
