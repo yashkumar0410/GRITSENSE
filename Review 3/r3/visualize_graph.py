@@ -1,85 +1,83 @@
+"""
+VISUALIZE RECENT GRAPH OUTPUTS
+
+Reads:
+    output_recent/graphs/
+
+Writes:
+    output_recent/graph_images/
+
+The old output_graphs/ directory is never touched.
+"""
+
+from pathlib import Path
+import argparse
 
 import numpy as np
+import torch
 import matplotlib.pyplot as plt
-from pathlib import Path
-
-
-PLAYER_NODE_TYPE = 0
-BALL_NODE_TYPE = 1
-
-PLAYER_PLAYER_EDGE_TYPE = 0
-PLAYER_BALL_EDGE_TYPE = 1
 
 
 # ============================================================
-# OUTPUT DIRECTORY
+# PATHS
 # ============================================================
 
-OUTPUT_DIR = (
-    Path(__file__).resolve().parent
-    / "output_graphs"
+ROOT = Path(__file__).resolve().parent
+
+DEFAULT_GRAPH_DIR = (
+    ROOT / "output_recent" / "graphs"
 )
 
-OUTPUT_DIR.mkdir(
-    parents=True,
-    exist_ok=True
+DEFAULT_OUTPUT_DIR = (
+    ROOT / "output_recent" / "graph_images"
 )
 
 
 # ============================================================
-# MAIN GRAPH VISUALIZATION
+# LOAD GRAPH
 # ============================================================
 
-def visualize_graph(
-    graph,
-    frame_id,
-    title=None
-):
-    """
-    Visualize the complete volleyball graph.
+def load_graph(path):
 
-    Saves:
-        output_graphs/frame_<frame_id>_graph.png
+    data = torch.load(
+        path,
+        map_location="cpu",
+        weights_only=False
+    )
 
-    Nodes:
-        Player
-        Ball
+    # New pipeline saves a dictionary.
+    if isinstance(data, dict):
 
-    Edges:
-        Solid  -> Player-Player
-        Dashed -> Player-Ball
-    """
+        if "graph" in data:
 
-    if title is None:
-        title = (
-            f"Volleyball Feature + "
-            f"Interaction Graph - Frame {frame_id}"
+            graph = data["graph"]
+
+        else:
+
+            raise RuntimeError(
+                f"No 'graph' object found in {path}"
+            )
+
+        return data, graph
+
+    # Also support direct PyG graph files.
+    return {}, data
+
+
+# ============================================================
+# GET PLAYER NODES
+# ============================================================
+
+def get_player_nodes(graph):
+
+    if not hasattr(
+        graph,
+        "node_type"
+    ):
+
+        return np.arange(
+            graph.x.shape[0]
         )
-
-    # --------------------------------------------------------
-    # Extract graph data
-    # --------------------------------------------------------
-
-    node_features = (
-        graph.x
-        .detach()
-        .cpu()
-        .numpy()
-    )
-
-    edge_index = (
-        graph.edge_index
-        .detach()
-        .cpu()
-        .numpy()
-    )
-
-    edge_type = (
-        graph.edge_type
-        .detach()
-        .cpu()
-        .numpy()
-    )
 
     node_type = (
         graph.node_type
@@ -88,644 +86,763 @@ def visualize_graph(
         .numpy()
     )
 
+    # Existing pipeline:
+    # player nodes = node_type 0
+
+    return np.where(
+        node_type == 0
+    )[0]
+
+
+# ============================================================
+# GET PLAYER IDS
+# ============================================================
+
+def get_player_ids(
+    graph,
+    player_nodes
+):
+
+    # Try common attribute names.
+
+    for attribute in [
+        "player_ids",
+        "player_id",
+        "ids",
+    ]:
+
+        if hasattr(
+            graph,
+            attribute
+        ):
+
+            values = getattr(
+                graph,
+                attribute
+            )
+
+            try:
+
+                values = (
+                    values
+                    .detach()
+                    .cpu()
+                    .numpy()
+                    .reshape(-1)
+                )
+
+            except Exception:
+
+                try:
+
+                    values = np.asarray(
+                        values
+                    ).reshape(-1)
+
+                except Exception:
+
+                    continue
+
+            if len(values) == (
+                graph.x.shape[0]
+            ):
+
+                return [
+                    str(values[i])
+                    for i in player_nodes
+                ]
+
+            if len(values) == len(
+                player_nodes
+            ):
+
+                return [
+                    str(x)
+                    for x in values
+                ]
+
+    # If IDs weren't stored directly,
+    # use node indices rather than inventing IDs.
+
+    return [
+        f"node_{i}"
+        for i in player_nodes
+    ]
+
+
+# ============================================================
+# GET PLAYER POSITIONS
+# ============================================================
+
+def get_positions(
+    graph,
+    player_nodes
+):
+
     # --------------------------------------------------------
-    # Optional team information
+    # Preferred:
+    # first two spatial features.
     # --------------------------------------------------------
 
-    node_team = getattr(
-        graph,
-        "node_team",
-        None
+    x = (
+        graph.x
+        .detach()
+        .cpu()
+        .numpy()
     )
 
-    if node_team is not None:
+    # Existing feature layout has spatial information
+    # before the pose block.
 
-        node_team = (
-            node_team
+    if x.shape[1] >= 2:
+
+        positions = (
+            x[
+                player_nodes,
+                0:2
+            ]
+        )
+
+        if np.isfinite(
+            positions
+        ).all():
+
+            return positions
+
+    # --------------------------------------------------------
+    # Fallback: graph.pos
+    # --------------------------------------------------------
+
+    if hasattr(
+        graph,
+        "pos"
+    ):
+
+        pos = (
+            graph.pos
             .detach()
             .cpu()
             .numpy()
         )
 
+        return (
+            pos[player_nodes]
+        )
+
     # --------------------------------------------------------
-    # Extract node positions
+    # Last fallback:
+    # arrange nodes.
+    #
+    # This is only visualization fallback.
     # --------------------------------------------------------
 
-    x_positions = node_features[:, 2]
-    y_positions = node_features[:, 3]
-
-    player_mask = (
-        node_type
-        == PLAYER_NODE_TYPE
+    n = len(
+        player_nodes
     )
 
-    ball_mask = (
-        node_type
-        == BALL_NODE_TYPE
+    theta = np.linspace(
+        0,
+        2 * np.pi,
+        n,
+        endpoint=False
     )
 
-    player_indices = np.where(
-        player_mask
-    )[0]
+    return np.column_stack(
+        [
+            np.cos(theta),
+            np.sin(theta),
+        ]
+    )
 
-    ball_indices = np.where(
-        ball_mask
-    )[0]
+
+# ============================================================
+# GET EDGES
+# ============================================================
+
+def get_player_edges(
+    graph,
+    player_nodes
+):
+
+    if not hasattr(
+        graph,
+        "edge_index"
+    ):
+
+        return []
+
+    edge_index = (
+        graph.edge_index
+        .detach()
+        .cpu()
+        .numpy()
+    )
+
+    player_set = set(
+        player_nodes.tolist()
+    )
+
+    edges = []
+
+    for src, dst in zip(
+        edge_index[0],
+        edge_index[1]
+    ):
+
+        src = int(src)
+        dst = int(dst)
+
+        if (
+            src not in player_set
+            or dst not in player_set
+        ):
+
+            continue
+
+        # Convert global node indices
+        # to player-array indices.
+
+        edges.append(
+            (
+                src,
+                dst
+            )
+        )
+
+    return edges
+
+
+# ============================================================
+# POSE QUALITY
+# ============================================================
+
+def get_pose_quality(
+    graph,
+    player_nodes
+):
+
+    x = (
+        graph.x
+        .detach()
+        .cpu()
+    )
+
+    pose = (
+        x[
+            player_nodes,
+            8:42
+        ]
+    )
+
+    populated = (
+        torch.count_nonzero(
+            pose,
+            dim=1
+        ) > 0
+    )
+
+    return (
+        populated
+        .numpy()
+    )
+
+
+# ============================================================
+# DRAW ONE GRAPH
+# ============================================================
+
+def draw_graph(
+    data,
+    graph,
+    output_path
+):
+
+    player_nodes = (
+        get_player_nodes(
+            graph
+        )
+    )
+
+    if len(player_nodes) == 0:
+
+        print(
+            "No player nodes found."
+        )
+
+        return
+
+    positions = (
+        get_positions(
+            graph,
+            player_nodes
+        )
+    )
+
+    ids = (
+        get_player_ids(
+            graph,
+            player_nodes
+        )
+    )
+
+    edges = (
+        get_player_edges(
+            graph,
+            player_nodes
+        )
+    )
+
+    pose_available = (
+        get_pose_quality(
+            graph,
+            player_nodes
+        )
+    )
 
     # --------------------------------------------------------
-    # Create figure
+    # Map global node index -> plotted index
     # --------------------------------------------------------
 
-    plt.figure(
-        figsize=(12, 7)
+    index_map = {
+        int(node): index
+        for index, node in enumerate(
+            player_nodes
+        )
+    }
+
+    # --------------------------------------------------------
+    # Figure
+    # --------------------------------------------------------
+
+    fig, ax = plt.subplots(
+        figsize=(12, 8)
     )
 
     # --------------------------------------------------------
     # Draw edges
     # --------------------------------------------------------
 
-    for edge_idx in range(
-        edge_index.shape[1]
-    ):
-
-        source = edge_index[
-            0,
-            edge_idx
-        ]
-
-        target = edge_index[
-            1,
-            edge_idx
-        ]
-
-        x1 = x_positions[source]
-        y1 = y_positions[source]
-
-        x2 = x_positions[target]
-        y2 = y_positions[target]
-
-        edge_kind = (
-            edge_type[edge_idx]
-        )
+    for src, dst in edges:
 
         if (
-            edge_kind
-            == PLAYER_PLAYER_EDGE_TYPE
+            src not in index_map
+            or dst not in index_map
         ):
 
-            linestyle = "-"
-            alpha = 0.25
+            continue
 
-        elif (
-            edge_kind
-            == PLAYER_BALL_EDGE_TYPE
-        ):
+        a = index_map[src]
+        b = index_map[dst]
 
-            linestyle = "--"
-            alpha = 0.55
+        x1, y1 = (
+            positions[a]
+        )
 
-        else:
+        x2, y2 = (
+            positions[b]
+        )
 
-            linestyle = ":"
-            alpha = 0.2
-
-        plt.plot(
+        ax.plot(
             [x1, x2],
             [y1, y2],
-            linestyle=linestyle,
-            alpha=alpha
+            linewidth=1.2,
+            alpha=0.45,
         )
 
     # --------------------------------------------------------
-    # Player colors
+    # Draw player nodes
     # --------------------------------------------------------
 
-    if node_team is not None:
-
-        team_color_map = {
-            0: "tab:blue",
-            1: "tab:orange",
-            -1: "gray",
-        }
-
-        player_colors = [
-            team_color_map.get(
-                int(node_team[idx]),
-                "gray"
-            )
-            for idx in player_indices
-        ]
-
-    else:
-
-        player_colors = None
-
-    # --------------------------------------------------------
-    # Draw players
-    # --------------------------------------------------------
-
-    if len(player_indices) > 0:
-
-        plt.scatter(
-            x_positions[player_indices],
-            y_positions[player_indices],
-            s=100,
-            c=player_colors,
-            label="Player"
-        )
-
-    # --------------------------------------------------------
-    # Draw ball
-    # --------------------------------------------------------
-
-    if len(ball_indices) > 0:
-
-        plt.scatter(
-            x_positions[ball_indices],
-            y_positions[ball_indices],
-            s=150,
-            marker="o",
-            color="red",
-            label="Ball"
-        )
-
-    # --------------------------------------------------------
-    # Player labels
-    # --------------------------------------------------------
-
-    player_ids = getattr(
-        graph,
-        "player_ids",
-        None
-    )
-
-    if player_ids is not None:
-
-        # Convert tensor/list if necessary
-        try:
-            player_ids = (
-                player_ids
-                .detach()
-                .cpu()
-                .numpy()
-            )
-        except AttributeError:
-            pass
-
-        for node_idx, player_id in zip(
-            player_indices,
-            player_ids
-        ):
-
-            plt.annotate(
-                f"P{player_id}",
-                (
-                    x_positions[node_idx],
-                    y_positions[node_idx]
-                ),
-                xytext=(5, 5),
-                textcoords="offset points"
-            )
-
-    # --------------------------------------------------------
-    # Formatting
-    # --------------------------------------------------------
-
-    plt.xlabel(
-        "Normalized X"
-    )
-
-    plt.ylabel(
-        "Normalized Y"
-    )
-
-    plt.title(
-        title
-    )
-
-    plt.xlim(
-        0,
-        1
-    )
-
-    # Image coordinates increase downward
-    plt.ylim(
-        1,
-        0
-    )
-
-    plt.legend()
-
-    plt.grid(
-        alpha=0.2
-    )
-
-    plt.tight_layout()
-
-    # --------------------------------------------------------
-    # SAVE
-    # --------------------------------------------------------
-
-    output_file = (
-        OUTPUT_DIR
-        / f"frame_{frame_id}_graph.png"
-    )
-
-    plt.savefig(
-        output_file,
-        dpi=150,
-        bbox_inches="tight"
-    )
-
-    plt.close()
-
-    print(
-        f"Saved graph: {output_file}"
-    )
-
-
-# ============================================================
-# FEATURE GRAPH
-# ============================================================
-
-def visualize_feature_graph(
-    graph,
-    frame_id
-):
-    """
-    Visualize the 49-dimensional node feature graph.
-
-    Saves:
-        output_graphs/frame_<frame_id>_features.png
-    """
-
-    features = (
-        graph.x
-        .detach()
-        .cpu()
-        .numpy()
-    )
-
-    # --------------------------------------------------------
-    # Create figure
-    # --------------------------------------------------------
-
-    plt.figure(
-        figsize=(14, 6)
-    )
-
-    # --------------------------------------------------------
-    # Feature matrix
-    # --------------------------------------------------------
-
-    plt.imshow(
-        features,
-        aspect="auto"
-    )
-
-    plt.xlabel(
-        "Feature Index"
-    )
-
-    plt.ylabel(
-        "Node Index"
-    )
-
-    plt.title(
-        f"49-Dimensional Node Feature Graph "
-        f"- Frame {frame_id}"
-    )
-
-    plt.colorbar(
-        label="Normalized Feature Value"
-    )
-
-    plt.tight_layout()
-
-    # --------------------------------------------------------
-    # Save
-    # --------------------------------------------------------
-
-    output_file = (
-        OUTPUT_DIR
-        / f"frame_{frame_id}_features.png"
-    )
-
-    plt.savefig(
-        output_file,
-        dpi=150,
-        bbox_inches="tight"
-    )
-
-    plt.close()
-
-    print(
-        f"Saved feature graph: {output_file}"
-    )
-
-
-# ============================================================
-# INTERACTION GRAPH
-# ============================================================
-
-def visualize_interaction_graph(
-    graph,
-    frame_id
-):
-    """
-    Visualize only the interaction structure.
-
-    Player-player edges:
-        Solid
-
-    Player-ball edges:
-        Dashed
-
-    Saves:
-        output_graphs/frame_<frame_id>_interaction.png
-    """
-
-    # --------------------------------------------------------
-    # Extract graph data
-    # --------------------------------------------------------
-
-    node_features = (
-        graph.x
-        .detach()
-        .cpu()
-        .numpy()
-    )
-
-    edge_index = (
-        graph.edge_index
-        .detach()
-        .cpu()
-        .numpy()
-    )
-
-    edge_type = (
-        graph.edge_type
-        .detach()
-        .cpu()
-        .numpy()
-    )
-
-    node_type = (
-        graph.node_type
-        .detach()
-        .cpu()
-        .numpy()
-    )
-
-    # --------------------------------------------------------
-    # Team information
-    # --------------------------------------------------------
-
-    node_team = getattr(
-        graph,
-        "node_team",
-        None
-    )
-
-    if node_team is not None:
-
-        node_team = (
-            node_team
-            .detach()
-            .cpu()
-            .numpy()
-        )
-
-    # --------------------------------------------------------
-    # Positions
-    # --------------------------------------------------------
-
-    x_positions = node_features[:, 2]
-    y_positions = node_features[:, 3]
-
-    player_indices = np.where(
-        node_type
-        == PLAYER_NODE_TYPE
-    )[0]
-
-    ball_indices = np.where(
-        node_type
-        == BALL_NODE_TYPE
-    )[0]
-
-    # --------------------------------------------------------
-    # Create figure
-    # --------------------------------------------------------
-
-    plt.figure(
-        figsize=(12, 7)
-    )
-
-    # ========================================================
-    # PLAYER-PLAYER INTERACTIONS
-    # ========================================================
-
-    player_player_mask = (
-        edge_type
-        == PLAYER_PLAYER_EDGE_TYPE
-    )
-
-    player_player_edges = (
-        edge_index[
-            :,
-            player_player_mask
-        ]
-    )
-
-    for source, target in zip(
-        player_player_edges[0],
-        player_player_edges[1]
+    for i in range(
+        len(player_nodes)
     ):
 
-        plt.plot(
-            [
-                x_positions[source],
-                x_positions[target]
-            ],
-            [
-                y_positions[source],
-                y_positions[target]
-            ],
-            linestyle="-",
-            alpha=0.25
+        x, y = positions[i]
+
+        ax.scatter(
+            x,
+            y,
+            s=220,
+            alpha=0.9,
         )
 
-    # ========================================================
-    # PLAYER-BALL INTERACTIONS
-    # ========================================================
+        # ----------------------------------------------------
+        # MF3 ID
+        # ----------------------------------------------------
 
-    player_ball_mask = (
-        edge_type
-        == PLAYER_BALL_EDGE_TYPE
-    )
-
-    player_ball_edges = (
-        edge_index[
-            :,
-            player_ball_mask
-        ]
-    )
-
-    for source, target in zip(
-        player_ball_edges[0],
-        player_ball_edges[1]
-    ):
-
-        plt.plot(
-            [
-                x_positions[source],
-                x_positions[target]
-            ],
-            [
-                y_positions[source],
-                y_positions[target]
-            ],
-            linestyle="--",
-            alpha=0.55
+        ax.text(
+            x,
+            y,
+            ids[i],
+            ha="center",
+            va="center",
+            fontsize=8,
         )
 
-    # ========================================================
-    # PLAYER NODES
-    # ========================================================
+        # ----------------------------------------------------
+        # Pose status
+        # ----------------------------------------------------
 
-    if len(player_indices) > 0:
+        if pose_available[i]:
 
-        if node_team is not None:
-
-            player_colors = [
-                (
-                    "tab:blue"
-                    if node_team[idx] == 0
-                    else (
-                        "tab:orange"
-                        if node_team[idx] == 1
-                        else "gray"
-                    )
-                )
-                for idx in player_indices
-            ]
+            status = "pose ✓"
 
         else:
 
-            player_colors = None
+            status = "pose —"
 
-        plt.scatter(
-            x_positions[player_indices],
-            y_positions[player_indices],
-            s=120,
-            c=player_colors,
-            label="Players"
+        ax.annotate(
+            status,
+            (
+                x,
+                y
+            ),
+            xytext=(
+                0,
+                -18
+            ),
+            textcoords="offset points",
+            ha="center",
+            fontsize=7,
         )
 
-    # ========================================================
-    # BALL
-    # ========================================================
+    # --------------------------------------------------------
+    # Frame number
+    # --------------------------------------------------------
 
-    if len(ball_indices) > 0:
-
-        plt.scatter(
-            x_positions[ball_indices],
-            y_positions[ball_indices],
-            s=180,
-            marker="o",
-            color="red",
-            label="Ball"
+    frame_id = (
+        data.get(
+            "frame_id",
+            "unknown"
         )
-
-    # ========================================================
-    # PLAYER LABELS
-    # ========================================================
-
-    player_ids = getattr(
-        graph,
-        "player_ids",
-        None
     )
 
-    if player_ids is not None:
-
-        try:
-            player_ids = (
-                player_ids
-                .detach()
-                .cpu()
-                .numpy()
-            )
-        except AttributeError:
-            pass
-
-        for node_idx, player_id in zip(
-            player_indices,
-            player_ids
-        ):
-
-            plt.annotate(
-                f"P{player_id}",
-                (
-                    x_positions[node_idx],
-                    y_positions[node_idx]
-                ),
-                xytext=(5, 5),
-                textcoords="offset points"
-            )
-
-    # ========================================================
-    # FORMATTING
-    # ========================================================
-
-    plt.xlabel(
-        "Normalized X"
+    ax.set_title(
+        f"Volleyball Spatial Graph — "
+        f"Frame {frame_id}\n"
+        f"MF3 player IDs + latest pose"
     )
 
-    plt.ylabel(
-        "Normalized Y"
+    ax.set_xlabel(
+        "Spatial X"
     )
 
-    plt.title(
-        f"Interaction Graph "
-        f"- Frame {frame_id}"
+    ax.set_ylabel(
+        "Spatial Y"
     )
 
-    plt.xlim(
-        0,
-        1
+    ax.grid(
+        True,
+        alpha=0.25
     )
 
-    plt.ylim(
-        1,
-        0
+    ax.set_aspect(
+        "equal",
+        adjustable="datalim"
     )
 
-    plt.legend()
+    # --------------------------------------------------------
+    # Info box
+    # --------------------------------------------------------
 
-    plt.grid(
-        alpha=0.2
+    pose_count = int(
+        pose_available.sum()
+    )
+
+    total_players = len(
+        player_nodes
+    )
+
+    pose_percentage = (
+        100.0
+        * pose_count
+        / total_players
+        if total_players
+        else 0
+    )
+
+    info = (
+        f"Players: {total_players}\n"
+        f"Edges: {len(edges)}\n"
+        f"Pose: "
+        f"{pose_count}/{total_players} "
+        f"({pose_percentage:.1f}%)\n"
+        f"Node features: 49-D\n"
+        f"Pose features: 34-D"
+    )
+
+    ax.text(
+        0.02,
+        0.98,
+        info,
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=9,
+        bbox=dict(
+            boxstyle="round",
+            alpha=0.85,
+        ),
     )
 
     plt.tight_layout()
 
-    # ========================================================
-    # SAVE
-    # ========================================================
-
-    output_file = (
-        OUTPUT_DIR
-        / f"frame_{frame_id}_interaction.png"
-    )
-
-    plt.savefig(
-        output_file,
-        dpi=150,
+    fig.savefig(
+        output_path,
+        dpi=180,
         bbox_inches="tight"
     )
 
-    plt.close()
+    plt.close(
+        fig
+    )
+
+
+# ============================================================
+# PROCESS ALL GRAPHS
+# ============================================================
+
+def main():
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--graph_dir",
+        default=str(
+            DEFAULT_GRAPH_DIR
+        )
+    )
+
+    parser.add_argument(
+        "--output_dir",
+        default=str(
+            DEFAULT_OUTPUT_DIR
+        )
+    )
+
+    parser.add_argument(
+        "--start",
+        type=int,
+        default=None
+    )
+
+    parser.add_argument(
+        "--end",
+        type=int,
+        default=None
+    )
+
+    args = parser.parse_args()
+
+    graph_dir = Path(
+        args.graph_dir
+    )
+
+    output_dir = Path(
+        args.output_dir
+    )
+
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    # --------------------------------------------------------
+    # Safety check
+    # --------------------------------------------------------
+
+    if "output_recent" not in (
+        str(output_dir)
+    ).lower():
+
+        print(
+            "WARNING:"
+        )
+
+        print(
+            "Output directory does not contain "
+            "'output_recent'."
+        )
+
+    if not graph_dir.exists():
+
+        raise FileNotFoundError(
+            f"Graph directory not found:\n"
+            f"{graph_dir}\n\n"
+            "Run integrate_and_rebuild.py first."
+        )
+
+    graph_files = sorted(
+        graph_dir.glob(
+            "graph_frame_*.pt"
+        )
+    )
+
+    # --------------------------------------------------------
+    # Optional frame filtering
+    # --------------------------------------------------------
+
+    if args.start is not None:
+
+        graph_files = [
+            p
+            for p in graph_files
+            if int(
+                p.stem.split("_")[-1]
+            ) >= args.start
+        ]
+
+    if args.end is not None:
+
+        graph_files = [
+            p
+            for p in graph_files
+            if int(
+                p.stem.split("_")[-1]
+            ) <= args.end
+        ]
+
+    print()
+    print("=" * 75)
+    print(
+        "RECENT GRAPH VISUALIZATION"
+    )
+    print("=" * 75)
+
+    print()
+    print(
+        "Reading:"
+    )
 
     print(
-        f"Saved interaction graph: {output_file}"
+        graph_dir
     )
+
+    print()
+    print(
+        "Writing:"
+    )
+
+    print(
+        output_dir
+    )
+
+    print()
+    print(
+        "Graphs found:",
+        len(graph_files)
+    )
+
+    if not graph_files:
+
+        print()
+        print(
+            "No graph files found."
+        )
+
+        print(
+            "Run:"
+        )
+
+        print(
+            "python integrate_and_rebuild.py"
+        )
+
+        return
+
+    successful = 0
+    failed = 0
+
+    # --------------------------------------------------------
+    # Generate PNGs
+    # --------------------------------------------------------
+
+    for index, graph_file in enumerate(
+        graph_files,
+        start=1
+    ):
+
+        try:
+
+            data, graph = (
+                load_graph(
+                    graph_file
+                )
+            )
+
+            frame_id = (
+                data.get(
+                    "frame_id",
+                    graph_file.stem
+                )
+            )
+
+            output_file = (
+                output_dir
+                / (
+                    graph_file.stem
+                    + ".png"
+                )
+            )
+
+            draw_graph(
+                data,
+                graph,
+                output_file
+            )
+
+            successful += 1
+
+            print(
+                f"[{index}/{len(graph_files)}] "
+                f"✓ Frame {frame_id}"
+            )
+
+        except Exception as exc:
+
+            failed += 1
+
+            print(
+                f"[{index}/{len(graph_files)}] "
+                f"✗ {graph_file.name}"
+            )
+
+            print(
+                f"    {type(exc).__name__}: "
+                f"{exc}"
+            )
+
+    print()
+    print("=" * 75)
+    print(
+        "VISUALIZATION COMPLETE ✓"
+    )
+    print("=" * 75)
+
+    print()
+    print(
+        "PNG graphs generated:",
+        successful
+    )
+
+    print(
+        "Failed:",
+        failed
+    )
+
+    print()
+    print(
+        "Graph images:"
+    )
+
+    print(
+        output_dir
+    )
+
+
+# ============================================================
+# RUN
+# ============================================================
+
+if __name__ == "__main__":
+    main()
