@@ -1,11 +1,12 @@
 """
-VISUALIZE RECENT GRAPH OUTPUTS
+VISUALIZE + ANIMATE RECENT GRAPH OUTPUTS
 
 Reads:
     output_recent/graphs/
 
 Writes:
     output_recent/graph_images/
+    output_recent/graphs_video.mp4
 
 The old output_graphs/ directory is never touched.
 """
@@ -16,6 +17,7 @@ import argparse
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+import cv2
 
 
 # ============================================================
@@ -31,6 +33,12 @@ DEFAULT_GRAPH_DIR = (
 DEFAULT_OUTPUT_DIR = (
     ROOT / "output_recent" / "graph_images"
 )
+
+DEFAULT_VIDEO_PATH = (
+    ROOT / "output_recent" / "graphs_video.mp4"
+)
+
+DEFAULT_FPS = 30
 
 
 # ============================================================
@@ -49,11 +57,9 @@ def load_graph(path):
     if isinstance(data, dict):
 
         if "graph" in data:
-
             graph = data["graph"]
 
         else:
-
             raise RuntimeError(
                 f"No 'graph' object found in {path}"
             )
@@ -232,8 +238,6 @@ def get_positions(
     # --------------------------------------------------------
     # Last fallback:
     # arrange nodes.
-    #
-    # This is only visualization fallback.
     # --------------------------------------------------------
 
     n = len(
@@ -298,9 +302,6 @@ def get_player_edges(
         ):
 
             continue
-
-        # Convert global node indices
-        # to player-array indices.
 
         edges.append(
             (
@@ -369,7 +370,7 @@ def draw_graph(
             "No player nodes found."
         )
 
-        return
+        return False
 
     positions = (
         get_positions(
@@ -466,10 +467,7 @@ def draw_graph(
             alpha=0.9,
         )
 
-        # ----------------------------------------------------
         # MF3 ID
-        # ----------------------------------------------------
-
         ax.text(
             x,
             y,
@@ -479,16 +477,10 @@ def draw_graph(
             fontsize=8,
         )
 
-        # ----------------------------------------------------
         # Pose status
-        # ----------------------------------------------------
-
         if pose_available[i]:
-
             status = "pose ✓"
-
         else:
-
             status = "pose —"
 
         ax.annotate(
@@ -593,9 +585,198 @@ def draw_graph(
         bbox_inches="tight"
     )
 
-    plt.close(
-        fig
+    plt.close(fig)
+
+    return True
+
+
+# ============================================================
+# CREATE VIDEO FROM PNGs
+# ============================================================
+
+def create_video(
+    image_files,
+    video_path,
+    fps
+):
+
+    print()
+    print("=" * 75)
+    print("STEP 2 - CREATING GRAPH VIDEO")
+    print("=" * 75)
+
+    if not image_files:
+
+        print(
+            "ERROR: No PNG images available."
+        )
+
+        return False
+
+    # --------------------------------------------------------
+    # Read first image
+    # --------------------------------------------------------
+
+    first_image = cv2.imread(
+        str(image_files[0])
     )
+
+    if first_image is None:
+
+        raise RuntimeError(
+            f"Could not read first image:\n"
+            f"{image_files[0]}"
+        )
+
+    height, width = (
+        first_image.shape[:2]
+    )
+
+    print()
+    print(
+        f"Video resolution: "
+        f"{width} x {height}"
+    )
+
+    print(
+        f"FPS: {fps}"
+    )
+
+    print(
+        f"Frames: {len(image_files)}"
+    )
+
+    # --------------------------------------------------------
+    # MP4 writer
+    # --------------------------------------------------------
+
+    fourcc = cv2.VideoWriter_fourcc(
+        *"mp4v"
+    )
+
+    writer = cv2.VideoWriter(
+        str(video_path),
+        fourcc,
+        fps,
+        (width, height)
+    )
+
+    if not writer.isOpened():
+
+        raise RuntimeError(
+            "Could not open video writer."
+        )
+
+    # --------------------------------------------------------
+    # Add every PNG as a frame
+    # --------------------------------------------------------
+
+    written = 0
+
+    for index, image_file in enumerate(
+        image_files,
+        start=1
+    ):
+
+        frame = cv2.imread(
+            str(image_file)
+        )
+
+        if frame is None:
+
+            print(
+                f"WARNING: Could not read "
+                f"{image_file.name}"
+            )
+
+            continue
+
+        # ----------------------------------------------------
+        # Ensure every frame has identical dimensions
+        # ----------------------------------------------------
+
+        if (
+            frame.shape[1] != width
+            or frame.shape[0] != height
+        ):
+
+            frame = cv2.resize(
+                frame,
+                (width, height)
+            )
+
+        writer.write(frame)
+
+        written += 1
+
+        if (
+            index <= 5
+            or index % 25 == 0
+            or index == len(image_files)
+        ):
+
+            print(
+                f"[{index}/{len(image_files)}] "
+                f"✓ added to video"
+            )
+
+    writer.release()
+
+    # --------------------------------------------------------
+    # Verify
+    # --------------------------------------------------------
+
+    if not video_path.exists():
+
+        print(
+            "ERROR: Video was not created."
+        )
+
+        return False
+
+    size_mb = (
+        video_path.stat().st_size
+        / (1024 * 1024)
+    )
+
+    duration = (
+        written / fps
+        if fps > 0
+        else 0
+    )
+
+    print()
+    print("=" * 75)
+    print("VIDEO CREATED ✓")
+    print("=" * 75)
+
+    print()
+    print(
+        f"Output:"
+    )
+
+    print(
+        video_path
+    )
+
+    print()
+    print(
+        f"Frames written : {written}"
+    )
+
+    print(
+        f"FPS            : {fps}"
+    )
+
+    print(
+        f"Duration       : {duration:.2f} seconds"
+    )
+
+    print(
+        f"File size      : {size_mb:.2f} MB"
+    )
+
+    return True
 
 
 # ============================================================
@@ -621,6 +802,19 @@ def main():
     )
 
     parser.add_argument(
+        "--video_output",
+        default=str(
+            DEFAULT_VIDEO_PATH
+        )
+    )
+
+    parser.add_argument(
+        "--fps",
+        type=float,
+        default=DEFAULT_FPS
+    )
+
+    parser.add_argument(
         "--start",
         type=int,
         default=None
@@ -642,7 +836,16 @@ def main():
         args.output_dir
     )
 
+    video_path = Path(
+        args.video_output
+    )
+
     output_dir.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    video_path.parent.mkdir(
         parents=True,
         exist_ok=True
     )
@@ -669,7 +872,7 @@ def main():
         raise FileNotFoundError(
             f"Graph directory not found:\n"
             f"{graph_dir}\n\n"
-            "Run integrate_and_rebuild.py first."
+            "Run run_integrated_pipeline first."
         )
 
     graph_files = sorted(
@@ -705,27 +908,21 @@ def main():
     print()
     print("=" * 75)
     print(
-        "RECENT GRAPH VISUALIZATION"
+        "RECENT GRAPH VISUALIZATION + VIDEO"
     )
     print("=" * 75)
 
     print()
-    print(
-        "Reading:"
-    )
-
-    print(
-        graph_dir
-    )
+    print("Reading:")
+    print(graph_dir)
 
     print()
-    print(
-        "Writing:"
-    )
+    print("PNG output:")
+    print(output_dir)
 
-    print(
-        output_dir
-    )
+    print()
+    print("VIDEO output:")
+    print(video_path)
 
     print()
     print(
@@ -741,21 +938,24 @@ def main():
         )
 
         print(
-            "Run:"
-        )
-
-        print(
-            "python integrate_and_rebuild.py"
+            "Run your integrated pipeline first."
         )
 
         return
 
+    # ========================================================
+    # STEP 1 — GENERATE PNGs
+    # ========================================================
+
+    print()
+    print("=" * 75)
+    print("STEP 1 - GENERATING GRAPH PNGs")
+    print("=" * 75)
+
     successful = 0
     failed = 0
 
-    # --------------------------------------------------------
-    # Generate PNGs
-    # --------------------------------------------------------
+    generated_images = []
 
     for index, graph_file in enumerate(
         graph_files,
@@ -785,18 +985,28 @@ def main():
                 )
             )
 
-            draw_graph(
+            success = draw_graph(
                 data,
                 graph,
                 output_file
             )
 
-            successful += 1
+            if success:
 
-            print(
-                f"[{index}/{len(graph_files)}] "
-                f"✓ Frame {frame_id}"
-            )
+                successful += 1
+
+                generated_images.append(
+                    output_file
+                )
+
+                print(
+                    f"[{index}/{len(graph_files)}] "
+                    f"✓ Frame {frame_id}"
+                )
+
+            else:
+
+                failed += 1
 
         except Exception as exc:
 
@@ -812,22 +1022,51 @@ def main():
                 f"{exc}"
             )
 
+    # ========================================================
+    # STEP 2 — SORT PNGs
+    # ========================================================
+
+    generated_images = sorted(
+        generated_images,
+        key=lambda p: int(
+            p.stem.split("_")[-1]
+        )
+    )
+
+    print()
+    print(
+        f"Successfully generated "
+        f"{len(generated_images)} PNG frames."
+    )
+
+    # ========================================================
+    # STEP 3 — CREATE MP4
+    # ========================================================
+
+    if len(generated_images) > 0:
+
+        create_video(
+            generated_images,
+            video_path,
+            args.fps
+        )
+
+    # ========================================================
+    # FINAL SUMMARY
+    # ========================================================
+
     print()
     print("=" * 75)
-    print(
-        "VISUALIZATION COMPLETE ✓"
-    )
+    print("COMPLETE ✓")
     print("=" * 75)
 
     print()
     print(
-        "PNG graphs generated:",
-        successful
+        f"PNG graphs : {successful}"
     )
 
     print(
-        "Failed:",
-        failed
+        f"Failed     : {failed}"
     )
 
     print()
@@ -837,6 +1076,20 @@ def main():
 
     print(
         output_dir
+    )
+
+    print()
+    print(
+        "FINAL VIDEO:"
+    )
+
+    print(
+        video_path
+    )
+
+    print()
+    print(
+        "🎥 Your graph animation is ready."
     )
 
 
