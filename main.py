@@ -58,7 +58,7 @@ while cap.isOpened():
         tracker="botsort.yaml",
         verbose=False,
         device=device,
-        half=True,
+        quantize=16 if device != "cpu" else 32,
     )
 
     for r in results:

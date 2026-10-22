@@ -1,5 +1,0 @@
-numpy
-torch
-torch-geometric
-matplotlib
-pytest
