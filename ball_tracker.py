@@ -180,21 +180,6 @@ class BallTracker:
 
         x = int(ball_data["x"])
         y = int(ball_data["y"])
-
-        cv2.circle(frame, (x, y), 10, color, 2)
-        cv2.circle(frame, (x, y), 3, color, -1)
-        cv2.putText(
-            frame,
-            f"BALL {ball_data['confidence']:.2f}",
-            (x + 12, y - 12),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            color,
-            2
-        )
-
-        points = list(self.history)
-        for i in range(1, len(points)):
-            cv2.line(frame, points[i - 1], points[i], color, 2)
+        cv2.circle(frame, (x, y), 6, color, -1)
 
         return frame
