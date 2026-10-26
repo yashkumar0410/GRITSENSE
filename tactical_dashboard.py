@@ -25,6 +25,7 @@ import argparse
 import csv
 import json
 import math
+from dataclasses import replace
 from pathlib import Path
 
 import cv2
@@ -544,7 +545,7 @@ def draw_text_layer(canvas_bgr, ins, commentary, epv_history, target_img, frame_
     d.ellipse((vx0 + 12, vy0 + 9, vx0 + 22, vy0 + 19), fill=LIVE_RED)
     d.text((vx0 + 32, vy0 + 14), "LIVE FEED", font=FONTS["tag"], fill=TEXT, anchor="lm")
     if ins.attack_team is not None:
-        state = f"#{ins.toucher} ON BALL" if ins.ball_near else "BALL IN FLIGHT"
+        state = f"#{ins.toucher}  ·  {ins.phase.upper()}" if ins.ball_near else "BALL IN FLIGHT"
         sw = d.textlength(state, font=FONTS["tag"]) + 24
         sx0 = vx0 + 122
         d.rounded_rectangle((sx0, vy0, sx0 + sw, vy0 + 28), radius=14, fill=(8, 12, 20),
@@ -588,8 +589,8 @@ def draw_text_layer(canvas_bgr, ins, commentary, epv_history, target_img, frame_
                             fill=TILE, outline=TEAM_RGB[ins.attack_team], width=2)
         d.text((PLAY_CARD[2] - cw - 30, y0 + 24), chip, font=FONTS["tag"], fill=TEXT, anchor="lm")
 
-    d.text((x0 + 18, y0 + 44), ins.move, font=FONTS["move"], fill=TEXT)
-    who = f"#{ins.key_player}  ·  " if ins.key_player is not None else ""
+    d.text((x0 + 18, y0 + 44), ins.move, font=FONTS["move"], fill=TEXT if ins.attack_chance else MUTED)
+    who = f"#{ins.key_player}  ·  " if ins.key_player is not None and ins.attack_chance else ""
     d.text((x0 + 18, y0 + 92), f"{who}{ins.move_detail}", font=FONTS["body"], fill=MUTED)
     if ins.target is not None:
         zdesc = ZONE_DESCRIPTIONS.get(ins.target_zone, "")
@@ -600,11 +601,14 @@ def draw_text_layer(canvas_bgr, ins, commentary, epv_history, target_img, frame_
                    f"HRN  ·  Zone {h['zone']} {h['zone_conf']:.0%}  ·  {h['shot'].split(' ')[0].title()}",
                    font=FONTS["small_sb"], fill=MUTED, anchor="ra")
 
-    tiles = [
-        ("POINT CHANCE", f"{ins.epv:.0%}", f"{(ins.epv - ins.epv_mean) * 100:+.0f} pts vs court avg", None),
-        ("BLOCK CHANCE", f"{ins.block_prob:.0%}", None, (ins.block_prob, AMBER)),
-        ("OUT CHANCE", f"{ins.risk:.0%}", None, (ins.risk, AMBER)),
-    ]
+    if ins.attack_chance:
+        tiles = [
+            ("POINT CHANCE", f"{ins.epv:.0%}", f"{(ins.epv - ins.epv_mean) * 100:+.0f} pts vs court avg", None),
+            ("BLOCK CHANCE", f"{ins.block_prob:.0%}", None, (ins.block_prob, AMBER)),
+            ("OUT CHANCE", f"{ins.risk:.0%}", None, (ins.risk, AMBER)),
+        ]
+    else:   # no hit over the net coming yet: nothing to score
+        tiles = [("POINT CHANCE", "—", None, None), ("BLOCK CHANCE", "—", None, None), ("OUT CHANCE", "—", None, None)]
     for i, (label, value, sub, bar) in enumerate(tiles):
         tx, ty = x0 + 18 + i * 194, y0 + 156
         d.rounded_rectangle((tx, ty, tx + 182, ty + 82), radius=10, fill=TILE)
@@ -703,6 +707,22 @@ def draw_text_layer(canvas_bgr, ins, commentary, epv_history, target_img, frame_
 # ----------------------------------------------------------------------------
 
 
+def display_view(ins):
+    """What the dashboard draws. "Where to hit" (point-chance map, target, zone, shot path)
+    is shown only when a hit over the net is coming: a serve, a set to a hitter, or the
+    attack itself. During passes / digs and while the ball crosses the net, the card shows
+    how the attack is being built instead."""
+    if ins.attack_chance or ins.attack_team is None:
+        return ins
+    if ins.phase == "pass":
+        move = f"PASS  ·  SET TO #{ins.key_player}" if ins.key_player is not None else "PASS"
+        detail = f"#{ins.passer} passing  ·  attack comes after the set" if ins.passer else "building the attack"
+    else:
+        move, detail = "BALL IN FLIGHT", "waiting for the next touch"
+    return replace(ins, surface=None, target=None, target_zone=None, move=move, move_detail=detail,
+                   hrn_prediction=None)
+
+
 def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, annotations_path: Path,
                      out_dir: Path, team_names: dict[int, str], max_frames: int | None = None,
                      show: bool = False, snapshot_every: int = 80, nlp: str = "auto",
@@ -731,7 +751,9 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
         from analytics.learned import LearnedModels
         try:
             learned_models = LearnedModels()
-            print(f"Combining physics with trained GAT / HRN (learned weight {learned_weight:.0%})")
+            print(f"Combining physics with trained GAT / HRN (learned weight {learned_weight:.0%}; "
+                  f"HRN target influence scaled by test skill: zone {learned_models.zone_skill:.2f}, "
+                  f"shot {learned_models.shot_skill:.2f})")
         except FileNotFoundError:
             print("No trained checkpoints (run train_gat_hrn.py) - using physics only")
     else:
@@ -771,7 +793,8 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
             epv_history.append(ins.epv)
             epv_history = epv_history[-int(fps * 4):]
 
-            target_img = overlay_broadcast(frame, H, ins, players, ball, frame_idx)
+            view = display_view(ins)
+            target_img = overlay_broadcast(frame, H, view, players, ball, frame_idx)
             canvas = base.copy()
             vx, vy, vw, vh = VIDEO_BOX
             if crop is None:
@@ -780,8 +803,8 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
             canvas[vy:vy + vh, vx:vx + vw] = cv2.resize(frame[fy:fy + fh, fx:fx + fw], (vw, vh),
                                                         interpolation=cv2.INTER_AREA)
             cx, cy, cw, ch = COURT_BOX
-            canvas[cy:cy + ch, cx:cx + cw] = draw_tactical(ins, players, ball, frame_idx)
-            canvas = draw_text_layer(canvas, ins, commentary, epv_history, target_img,
+            canvas[cy:cy + ch, cx:cx + cw] = draw_tactical(view, players, ball, frame_idx)
+            canvas = draw_text_layer(canvas, view, commentary, epv_history, target_img,
                                      frame_idx, fps, team_names, crop, players)
 
             writer.write(canvas)

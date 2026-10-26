@@ -268,6 +268,8 @@ KINK_WINDOW = 3           # frames used for the incoming / outgoing velocity
 REACH_SCORE = 1.5         # touch_score below this = a player can play the ball
 NEAR_BEFORE, NEAR_AFTER = 8, 3   # "on the ball" window around a touch (frames)
 HOLD_SPEED_PX = 3.0       # slower than this next to a player = ball held (e.g. before a serve)
+SET_HEIGHT_M = 2.2        # touches above this (hands over the head) are sets or attacks
+UP_PX = 6.0               # ball rising faster than this after a touch (px/frame) = pass or set
 
 
 def load_clean(path: Path) -> list[BallPoint]:
@@ -300,8 +302,26 @@ def ball_offset_from_player(camera, frame: int, rec: dict, ball_xy) -> tuple[flo
     return height, abs(ball_xy[0] - here[0]) / px_per_m
 
 
-def detect_touches(track: list[BallPoint], player_data: dict, camera) -> tuple[dict[int, int], list[dict]]:
-    """Frames where a player is on the ball -> player id, plus the list of touch events.
+ATTACK_CROSS_S = 1.5      # an attack's ball reaches the other side within this time
+
+
+def _crosses_net(camera, pos: dict, rec: dict, frame: int, fps: float = FPS) -> bool:
+    """Does the ball reach the other side of the net (in the image) soon after this touch?"""
+    x1, _, x2, y2 = rec["bbox"]
+    own_left = camera.ground_point(frame, ((x1 + x2) / 2.0, float(y2)))[0] < 9.0
+    for g in range(frame + 1, frame + int(ATTACK_CROSS_S * fps) + 1):
+        if g in pos:
+            net_x = camera.project(g, (9.0, 4.5, C.value("net_height_m")))[0]
+            if (pos[g][0] > net_x) == own_left:
+                return True
+    return False
+
+
+def detect_touches(track: list[BallPoint], player_data: dict, camera) -> tuple[dict[int, tuple[int, str]], list[dict]]:
+    """Frames where a player is on the ball -> (player id, kind), plus the touch events.
+
+    kind: "pass" (dig / pass, ball sent up from below head height), "set" (sent up from
+    above the head), "attack" (above the head, ball sent across or down) or "hold".
 
     A touch is a sharp bend in the ball's path (the velocity over the next few frames
     differs from the previous few by more than KINK_PX) with a player within reach:
@@ -342,12 +362,24 @@ def detect_touches(track: list[BallPoint], player_data: dict, camera) -> tuple[d
             continue
         player = reacher(f, pos[f])
         if player is not None:
-            events.append({"frame": f, "player": player, "kink_px": round(k, 1)})
+            rec = player_data[str(f)][str(player)]
+            height, _ = ball_offset_from_player(camera, f, rec, pos[f])
+            after = [pos[g] for g in range(f, f + 5) if g in pos]
+            v_out = (after[-1] - after[0]) / max(1, len(after) - 1)
+            rising = v_out[1] < -UP_PX                       # image y grows downwards
+            # What kind of touch: a pass or set sends the ball up; an attack sends it
+            # across or down. Sets and attacks are played above the head.
+            kind = ("set" if height >= SET_HEIGHT_M else "pass") if rising else \
+                   ("attack" if height >= SET_HEIGHT_M else "pass")
+            if kind == "attack" and not _crosses_net(camera, pos, rec, f):
+                kind = "pass"          # an attack always sends the ball over the net
+            events.append({"frame": f, "player": player, "kink_px": round(k, 1),
+                           "height_m": round(height, 2), "kind": kind})
 
-    on_ball: dict[int, int] = {}
+    on_ball: dict[int, tuple[int, str]] = {}
     for e in events:
         for g in range(e["frame"] - NEAR_BEFORE, e["frame"] + NEAR_AFTER + 1):
-            on_ball.setdefault(g, e["player"])
+            on_ball.setdefault(g, (e["player"], e["kind"]))
     for f in pos:                                           # ball held, e.g. before a serve
         window = [pos.get(g) for g in range(f - 2, f + 3)]
         if any(w is None for w in window):
@@ -356,7 +388,7 @@ def detect_touches(track: list[BallPoint], player_data: dict, camera) -> tuple[d
         if max(np.linalg.norm(b - a) for a, b in zip(window, window[1:])) < HOLD_SPEED_PX:
             player = reacher(f, pos[f])
             if player is not None:
-                on_ball.setdefault(f, player)
+                on_ball.setdefault(f, (player, "hold"))
     return on_ball, events
 
 

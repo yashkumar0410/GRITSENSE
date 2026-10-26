@@ -87,6 +87,12 @@ def build_graph(frame_id: int):
             return None
 
 
+def _skill(accuracy, baseline) -> float:
+    if accuracy is None or baseline is None or baseline >= 1.0:
+        return 0.0
+    return float(max(0.0, min(1.0, (accuracy - baseline) / (1.0 - baseline))))
+
+
 class LearnedModels:
     """Loads gat.pt / hrn.pt and runs them on a frame's graph."""
 
@@ -110,6 +116,11 @@ class LearnedModels:
         for module in (self.gat, self.hrn, self.heads):
             module.eval()
         self.metrics = {"gat": gat_ckpt.get("metrics", {}), "hrn": hrn_ckpt.get("metrics", {})}
+        hrn = self.metrics["hrn"]
+        # Skill on the held-out test set: 0 = no better than always guessing the most
+        # common answer, 1 = perfect. Used to scale how much the HRN steers the target.
+        self.zone_skill = _skill(hrn.get("zone_accuracy"), hrn.get("zone_majority_baseline"))
+        self.shot_skill = _skill(hrn.get("shot_accuracy"), hrn.get("shot_majority_baseline"))
 
     @torch.no_grad()
     def predict(self, frame_id: int) -> dict | None:

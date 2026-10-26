@@ -2,6 +2,7 @@
   "top_speed_mps": 4.75,
   "stature_m": 1.92,
   "block_jump_m": 0.7,
+  "set_time_s": 0.6,
   "measured": {
     "camera_focal_px": 2500.0,
     "camera_centre_median_m": [
@@ -28,58 +29,81 @@
       {
         "frame": 34,
         "player": 13,
-        "height_m": 3.05
+        "height_m": 3.05,
+        "team": 0,
+        "kind": "pass"
       },
       {
         "frame": 50,
         "player": 11,
-        "height_m": 2.09
+        "height_m": 2.09,
+        "team": 0,
+        "kind": "pass"
       },
       {
         "frame": 71,
         "player": 5,
-        "height_m": 2.38
+        "height_m": 2.38,
+        "team": 0,
+        "kind": "set"
       },
       {
         "frame": 130,
         "player": 1,
-        "height_m": 0.86
+        "height_m": 0.86,
+        "team": 1,
+        "kind": "pass"
       },
       {
         "frame": 176,
         "player": 76,
-        "height_m": 3.19
+        "height_m": 3.19,
+        "team": 1,
+        "kind": "set"
       },
       {
         "frame": 213,
         "player": 92,
-        "height_m": 1.82
+        "height_m": 1.82,
+        "team": 0,
+        "kind": "pass"
       },
       {
         "frame": 255,
         "player": 5,
-        "height_m": 2.59
+        "height_m": 2.59,
+        "team": 0,
+        "kind": "set"
       },
       {
         "frame": 273,
         "player": 9,
-        "height_m": 1.38
+        "height_m": 1.38,
+        "team": 0,
+        "kind": "pass"
       },
       {
         "frame": 296,
         "player": 5,
-        "height_m": 3.64
+        "height_m": 3.64,
+        "team": 0,
+        "kind": "attack"
       },
       {
         "frame": 308,
         "player": 6,
-        "height_m": 1.29
+        "height_m": 1.29,
+        "team": 0,
+        "kind": "pass"
       }
     ],
+    "set_to_attack_times_s": [
+      0.6
+    ],
     "touch_height_max_m": 3.64,
-    "validation_spike_frames": 295,
-    "validation_best_target_point_chance": 0.9302,
-    "validation_average_target_point_chance": 0.4277,
+    "validation_spike_frames": 247,
+    "validation_best_target_point_chance": 0.883,
+    "validation_average_target_point_chance": 0.3859,
     "validation_published_attack_success": {
       "outside_hitters": 0.725,
       "opposites": 0.551
