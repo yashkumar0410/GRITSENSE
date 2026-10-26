@@ -1,0 +1,8 @@
+[00:00.1] (move, TEMPLATE) Play it to Zone 6: spike down the line from #11, the back-middle seam gives a 85% point chance.
+[00:00.9] (possession, TEMPLATE) Ball crosses to the BRA side. JPN must reset their block and cover Zone 6.
+[00:01.9] (move, TEMPLATE) Recommended: spike down the line by #5 — target the back-middle seam (Zone 6). JPN left 2.9 m uncovered there.
+[00:03.8] (possession, TEMPLATE) Possession switches to JPN. BRA's deep right corner is the weak spot.
+[00:04.9] (move, TEMPLATE) JPN #1 should go spike cross-court into Zone 1, the deep right corner. A 64% chance of an outright point.
+[00:05.9] (move, TEMPLATE) Best option for JPN: spike down the line into the back-middle seam, a 94% point chance with 1% block risk.
+[00:06.8] (possession, TEMPLATE) Ball crosses to the BRA side. JPN must reset their block and cover Zone 6.
+[00:10.4] (move, TEMPLATE) Recommended: spike cross-court by #6 — target the back-middle seam (Zone 6). JPN left 3.6 m uncovered there.

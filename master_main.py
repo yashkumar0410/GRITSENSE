@@ -30,7 +30,6 @@ from pathlib import Path
 import cv2
 import numpy as np
 import torch
-from ultralytics import YOLO
 
 
 ROOT = Path(__file__).resolve().parent
@@ -117,6 +116,9 @@ def run_video_detections(video_path: Path) -> None:
     Generate fresh project-compatible player/pose JSON and ball CSV from video.
     Original project scripts and model files are not modified.
     """
+    # Imported here so --dashboard-only runs without ultralytics installed.
+    from ultralytics import YOLO
+
     player_weights = ROOT / "player_detection.pt"
     ball_weights = ROOT / "ball.pt"
     pose_weights = _first_existing(ROOT / "pose.pt", ROOT / "yolov8n-pose.pt")
@@ -508,7 +510,34 @@ def parse_args():
         "--temporal-checkpoint", default=None,
         help="Path to a TRAINED GRU/Transformer checkpoint; enables activity prediction.",
     )
+    parser.add_argument(
+        "--dashboard", action="store_true",
+        help="Render the tactical dashboard (point-chance map, recommended play, commentary) at the end.",
+    )
+    parser.add_argument(
+        "--dashboard-only", action="store_true",
+        help="Skip detection and downstream stages; render the dashboard from existing outputs.",
+    )
+    parser.add_argument(
+        "--teams", nargs=2, default=["BRA", "JPN"], metavar=("LEFT", "RIGHT"),
+        help="Dashboard team names for the left and right halves.",
+    )
     return parser.parse_args()
+
+
+def run_dashboard(video_path: Path, team_names):
+    print("\n" + "=" * 76)
+    print("STAGE 4 — TACTICAL DASHBOARD (MOCK GAT / HRN / EPV + NLP)")
+    print("=" * 76)
+    import tactical_dashboard
+    return tactical_dashboard.render_dashboard(
+        video_path=video_path,
+        players_path=ROOT / "player_keypoints_mf3_pose.json",
+        ball_path=ROOT / "ball.csv",
+        annotations_path=ROOT / "annotations.json",
+        out_dir=ROOT / "output_recent" / "dashboard",
+        team_names={0: team_names[0], 1: team_names[1]},
+    )
 
 
 def main():
@@ -517,14 +546,26 @@ def main():
     if not video_path.is_absolute():
         video_path = (ROOT / video_path).resolve()
 
+    if args.dashboard_only:
+        run_dashboard(video_path, args.teams)
+        return
+
     if not args.keep_existing_output:
         _clear_generated_outputs()
 
     run_video_detections(video_path)
+
+    print("\n" + "=" * 76)
+    print("STAGE 1b — BALL RE-DETECTION AND CLEANING")
+    print("=" * 76)
+    import redetect_ball
+    redetect_ball.main(video_path)          # writes ball_candidates.json and ball_clean.csv
     run_existing_downstream(
         temporal_model=args.temporal_model,
         temporal_checkpoint=args.temporal_checkpoint,
     )
+    if args.dashboard:
+        run_dashboard(video_path, args.teams)
 
     print("\n" + "=" * 76)
     print("GRITSENSE MASTER PIPELINE COMPLETE")

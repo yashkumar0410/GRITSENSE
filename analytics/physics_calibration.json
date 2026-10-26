@@ -1,0 +1,89 @@
+{
+  "top_speed_mps": 4.75,
+  "stature_m": 1.92,
+  "block_jump_m": 0.7,
+  "measured": {
+    "camera_focal_px": 2500.0,
+    "camera_centre_median_m": [
+      8.62,
+      33.25,
+      10.06
+    ],
+    "camera_centre_std_m": [
+      0.95,
+      1.29,
+      0.71
+    ],
+    "player_speed_samples": 3136,
+    "player_speed_median_mps": 1.58,
+    "player_speed_p99_mps": 6.97,
+    "standing_height_samples": 2636,
+    "jumps_detected": 81,
+    "jump_peak_median_near_net_m": 0.46,
+    "jump_peak_max_m": 1.0,
+    "reach_max_near_net_m": 3.19,
+    "ball_clean_pairs": 60,
+    "ball_horizontal_max_mps": 25.2,
+    "touches": [
+      {
+        "frame": 34,
+        "player": 13,
+        "height_m": 3.05
+      },
+      {
+        "frame": 50,
+        "player": 11,
+        "height_m": 2.09
+      },
+      {
+        "frame": 71,
+        "player": 5,
+        "height_m": 2.38
+      },
+      {
+        "frame": 130,
+        "player": 1,
+        "height_m": 0.86
+      },
+      {
+        "frame": 176,
+        "player": 76,
+        "height_m": 3.19
+      },
+      {
+        "frame": 213,
+        "player": 92,
+        "height_m": 1.82
+      },
+      {
+        "frame": 255,
+        "player": 5,
+        "height_m": 2.59
+      },
+      {
+        "frame": 273,
+        "player": 9,
+        "height_m": 1.38
+      },
+      {
+        "frame": 296,
+        "player": 5,
+        "height_m": 3.64
+      },
+      {
+        "frame": 308,
+        "player": 6,
+        "height_m": 1.29
+      }
+    ],
+    "touch_height_max_m": 3.64,
+    "validation_spike_frames": 295,
+    "validation_best_target_point_chance": 0.9302,
+    "validation_average_target_point_chance": 0.4277,
+    "validation_published_attack_success": {
+      "outside_hitters": 0.725,
+      "opposites": 0.551
+    }
+  },
+  "notes": "stature, top speed and block jump are measured through the camera recovered from the court homography. Ball speeds keep published values (too few clean ball detections in one clip). The validation compares the model's best-spike point chance with published terminal-attack success; it is a check, not a fit."
+}

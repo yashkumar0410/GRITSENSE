@@ -95,6 +95,7 @@ class GAT(nn.Module):
         x,
         edge_index,
         edge_attr,
+        return_attention=False,
     ):
         """
         Forward pass through the GAT.
@@ -110,10 +111,19 @@ class GAT(nn.Module):
         edge_attr : torch.Tensor
             Edge features [num_edges, 4]
 
+        return_attention : bool
+            Also return the second layer's attention weights.
+
         Returns
         -------
         torch.Tensor
             Node embeddings [num_nodes, out_channels]
+
+        If return_attention is True:
+            (node_embeddings, (edge_index, attention))
+            attention : [num_edges (+ self loops), heads]
+            attention[e] is how much the target node of edge e
+            attends to its source node.
         """
 
         # ----------------------------------------------------
@@ -178,6 +188,15 @@ class GAT(nn.Module):
         # ----------------------------------------------------
         # Second GAT layer
         # ----------------------------------------------------
+
+        if return_attention:
+            x, attention = self.gat2(
+                x,
+                edge_index,
+                edge_attr,
+                return_attention_weights=True
+            )
+            return x, attention
 
         x = self.gat2(
             x,

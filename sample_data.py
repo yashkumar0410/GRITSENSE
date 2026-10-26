@@ -16,7 +16,8 @@ IMAGE_HEIGHT = 1080
 
 VIP_ROOT = Path(__file__).resolve().parent
 
-BALL_FILE = VIP_ROOT / "ball.csv"
+# Prefer the cleaned ball track (clean_ball_track.py) when it exists.
+BALL_FILE = VIP_ROOT / "ball_clean.csv" if (VIP_ROOT / "ball_clean.csv").exists() else VIP_ROOT / "ball.csv"
 PLAYER_FILE = VIP_ROOT / "player_keypoints_mf3_pose.json"
 COURT_FILE = VIP_ROOT / "annotations.json"
 
