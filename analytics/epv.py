@@ -19,10 +19,11 @@ can legally play from their position:
                 within half an arm span (dive reach) of the cell.
                 P(reached by i) = sigmoid((T - t_i) / sigma), sigma from the
                 published reaction-time spread ("pitch control" race).
-    Block       each defender at the net blocks the ball if it crosses the net
-                below their hands (published block reach, minus the part of
-                the measured block jump they haven't reached yet) and within
-                their hands' width.
+    Block       each blocker stops the ball if it crosses the net below their
+                hands and within their hands' width. Attacks are judged at the
+                moment of the hit: the front-row defenders step to the net,
+                shuffle toward the hitter during the set (measured set time,
+                measured top speed) and are at full published block reach.
     In / out    landing error ~ normal(0, aim_sd); aim_sd per shot is fitted
                 so serves miss at the published serve-error rates.
 
@@ -252,6 +253,36 @@ def hand_height(player) -> float:
     return STANDING_BLOCK_REACH + min(max(player.jump_m, 0.0), BLOCK_JUMP)
 
 
+@dataclass
+class PredictedBlocker:
+    """A front-row defender as they will be when the attack is hit."""
+    id: int
+    x: float
+    y: float
+    jump_m: float
+
+
+FRONT_ROW = 3          # FIVB: three front-row players may block
+
+
+def blockers_at_hit(defenders, contact: tuple[float, float], defend_side: int, time_to_hit: float):
+    """Front-row blockers at the moment of the hit.
+
+    The FRONT_ROW defenders nearest the net (within the attack line) step to the net,
+    shuffle along it toward the hitter at the measured top speed once they have
+    reacted, and jump to full block reach as the hitter jumps.
+    """
+    front = sorted((d for d in defenders if abs(d.x - NET_X) <= ATTACK_LINE), key=lambda d: abs(d.x - NET_X))
+    net_x = NET_X - 0.3 if defend_side == 0 else NET_X + 0.3
+    shuffle = TOP_SPEED * max(0.0, time_to_hit - REACTION_S)
+    out = []
+    for d in front[:FRONT_ROW]:
+        dy = contact[1] - d.y
+        y = d.y + np.clip(dy, -shuffle, shuffle)
+        out.append(PredictedBlocker(d.id, net_x, float(y), BLOCK_JUMP))
+    return out
+
+
 # ----------------------------------------------------------------------------
 # Surface
 # ----------------------------------------------------------------------------
@@ -267,6 +298,7 @@ class PhysicsSurface:
     shots: list
     layers: dict                 # per-cell components of the best shot
     contact: tuple[float, float]
+    time_to_hit: float | None = None   # blockers judged at the hit (None = as they are now)
 
     def sample(self, x: float, y: float) -> dict:
         ix = int(np.clip(np.searchsorted(self.xs, x), 0, len(self.xs) - 1))
@@ -324,7 +356,8 @@ class PhysicsEPV:
         return np.where(ok, best_T, np.nan), best_z, ok
 
     def surface(self, contact: tuple[float, float], defenders, defend_side: int,
-                shot_prior: dict[str, float] | None = None, prior_weight: float = 0.0) -> PhysicsSurface:
+                shot_prior: dict[str, float] | None = None, prior_weight: float = 0.0,
+                time_to_hit: float | None = None) -> PhysicsSurface:
         """EPV surface. With shot_prior (e.g. the HRN's shot probabilities), each shot's
         EPV is re-weighted by (1 - w + w * n * p), where p is the prior renormalised over
         the n available shots: a uniform prior leaves the physics ranking unchanged.
@@ -347,7 +380,12 @@ class PhysicsEPV:
 
         reach_t = reach_times(defenders, X, Y)                    # [n_def, ny, nx]
         defender_t = reach_t.min(axis=0)
-        blockers = [d for d in defenders if abs(d.x - NET_X) <= DIVE_REACH]
+        if time_to_hit is None:
+            # as they are now (only defenders already at the net, at their current jump)
+            blockers = [d for d in defenders if abs(d.x - NET_X) <= DIVE_REACH]
+        else:
+            # as they will be when the ball is hit (see blockers_at_hit)
+            blockers = blockers_at_hit(defenders, contact, defend_side, time_to_hit)
 
         best = np.full(X.shape, -1.0)
         best_idx = np.zeros(X.shape, dtype=int)
@@ -392,4 +430,4 @@ class PhysicsEPV:
 
         # Pure physics scores are probabilities in [0, 1]; prior-weighted ones may exceed 1.
         return PhysicsSurface(xs, self.ys, np.maximum(best, 0.0), defend_side,
-                              best_idx, shots, layers, (float(bx), float(by)))
+                              best_idx, shots, layers, (float(bx), float(by)), time_to_hit)

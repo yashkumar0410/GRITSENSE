@@ -1,8 +1,9 @@
-[00:00.1] (move, TEMPLATE) Play it to Zone 6: spike down the line from #11, the back-middle seam gives a 85% point chance.
-[00:00.9] (possession, TEMPLATE) Ball crosses to the BRA side. JPN must reset their block and cover Zone 6.
-[00:01.9] (move, TEMPLATE) Recommended: spike down the line by #5 — target the back-middle seam (Zone 6). JPN left 2.9 m uncovered there.
-[00:03.8] (possession, TEMPLATE) Possession switches to JPN. BRA's back-middle seam is the weak spot.
-[00:04.9] (move, TEMPLATE) JPN #1 should go spike cross-court into Zone 6, the back-middle seam. A 59% chance of an outright point.
-[00:05.9] (move, TEMPLATE) Best option for JPN: spike down the line into the back-middle seam, a 94% point chance with 1% block risk.
-[00:06.8] (possession, TEMPLATE) Ball crosses to the BRA side. JPN must reset their block and cover Zone 6.
-[00:10.4] (move, TEMPLATE) Recommended: spike cross-court by #6 — target the back-middle seam (Zone 6). JPN left 3.6 m uncovered there.
+[00:00.1] (insight, TEMPLATE) Key matchup: #2 against #1. JPN's #1 alone takes 40% of the threat off the table.
+[00:00.9] (possession, TEMPLATE) Possession switches to BRA. JPN's back-middle seam is the weak spot.
+[00:02.1] (move, TEMPLATE) BRA #11 should go back-row attack into Zone 1, the deep right corner. A 57% chance of an outright point.
+[00:03.1] (move, TEMPLATE) Recommended: spike cross-court by #5 — target the back-middle seam (Zone 6). JPN left 1.9 m uncovered there.
+[00:03.8] (possession, TEMPLATE) Ball crosses to the JPN side. BRA must reset their block and cover Zone 5.
+[00:05.6] (move, TEMPLATE) Play it to Zone 4: spike down the line from #3, the left front, along the line gives a 41% point chance.
+[00:06.6] (move, TEMPLATE) Best option for JPN: tip / roll shot into the middle front, behind the block, a 68% point chance with 10% block risk.
+[00:08.2] (move, TEMPLATE) BRA #92 should go back-row attack into Zone 6, the back-middle seam. A 33% chance of an outright point.
+[00:09.3] (move, TEMPLATE) Best option for BRA: tip / roll shot into the deep left corner, a 17% point chance with 17% block risk.

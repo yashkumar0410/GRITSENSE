@@ -76,6 +76,7 @@ CONSTANTS = {
     "top_speed":           (4.75, "m/s", "MEASURED", "95th percentile of tracked player speed"),
     "stature_m":           (1.91, "m", "MEASURED", "median standing height through the camera"),
     "block_jump_m":        (0.70, "m", "MEASURED", "90th percentile of peak jumps near the net"),
+    "set_time_s":          (0.63, "s", "MEASURED", "median time from a set to the attack (detected touches)"),
 
     # Estimated: no published or measurable value found.
     "offspeed_max_speed":  (12.05, "m/s", "ESTIMATED", "tips / roll shots capped at float-serve hand speed"),
@@ -89,6 +90,7 @@ _CALIBRATED_KEYS = {
     "top_speed_mps": ("top_speed", "MEASURED"),
     "stature_m": ("stature_m", "MEASURED"),
     "block_jump_m": ("block_jump_m", "MEASURED"),
+    "set_time_s": ("set_time_s", "MEASURED"),
 }
 if _CALIBRATION.exists():
     _measured = json.loads(_CALIBRATION.read_text(encoding="utf-8"))

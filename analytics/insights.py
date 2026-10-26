@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from . import constants as C
 from .epv import PhysicsEPV, PhysicsSurface
 from .relations import Matchup, TeamShape, TeamShapeModel, key_matchups
 
@@ -37,6 +38,7 @@ COURT_LENGTH = 18.0
 COURT_WIDTH = 9.0
 NET_X = 9.0
 ATTACK_LINE = 3.0  # distance of the attack line from the net
+SET_TIME_S = C.value("set_time_s")   # measured time from a set to the attack
 
 ZONE_DESCRIPTIONS = {
     1: "deep right corner",
@@ -101,6 +103,9 @@ class FrameInsight:
     p_in: float = 0.0
     p_block: float = 0.0
     ball_near: bool = False            # a player is on the ball (contact detected)
+    phase: str = "waiting"             # serve / pass / set / attack / in flight / waiting
+    attack_chance: bool = False        # a hit over the net is coming: show where to hit
+    passer: int | None = None          # player passing or setting when the advice is 'set to'
     toucher: int | None = None         # that player's id
     # "physics", or "physics+GAT" / "physics+HRN" when blended with the trained models
     matchup_source: str = "physics"
@@ -140,6 +145,9 @@ class FrameInsight:
             "hrn_prediction": self.hrn_prediction,
             "ball_near": self.ball_near,
             "toucher": self.toucher,
+            "phase": self.phase,
+            "attack_chance": self.attack_chance,
+            "passer": self.passer,
         }
 
 
@@ -214,6 +222,8 @@ class InsightEngine:
         self._last_toucher: tuple[int, int] | None = None
         self._prev_toucher: int | None = None          # toucher in the previous frame
         self._touch_count = 0                           # touches by the team in possession
+        self._last_set_frame: int | None = None         # last frame a set was being played
+        self._move_hitter: int | None = None            # hitter the shown move belongs to
         self._planned_hitter: tuple[int, int] | None = None   # (id, frame) chosen on a pass / set
 
     def _ema(self, previous, value):
@@ -278,10 +288,12 @@ class InsightEngine:
         return self._smooth_matchups(matchups), source
 
     def step(self, frame_idx: int, players: list[Player], ball: Ball | None,
-             toucher: int | None = None) -> FrameInsight:
+             toucher: tuple[int, str] | None = None) -> FrameInsight:
         """toucher: id of the player detected on the ball (analytics.ball_track.detect_touches)."""
         possession_changed = False
         first_possession = False
+        touch_kind = toucher[1] if toucher is not None else None
+        toucher = toucher[0] if toucher is not None else None
         on_ball = next((p for p in players if p.id == toucher), None) if toucher is not None else None
         new_touch = toucher is not None and toucher != self._prev_toucher
         self._prev_toucher = toucher
@@ -295,6 +307,7 @@ class InsightEngine:
                 self._impact = {}
                 self._touch_count = 0
                 self._planned_hitter = None
+                self._last_set_frame = None
             if new_touch:
                 self._touch_count += 1        # 1 = pass / dig, 2 = set, 3 = attack
             self._side_candidate, self._side_frames = on_ball.team, 0
@@ -314,6 +327,7 @@ class InsightEngine:
                 self._impact = {}
                 self._touch_count = 0          # the new team starts its three touches
                 self._planned_hitter = None
+                self._last_set_frame = None
         elif ball is not None and ball.visible:
             self._side_frames = 0
 
@@ -367,19 +381,27 @@ class InsightEngine:
         key_player = key.id if key is not None else None
 
         # Pure physics surface: matchups and the court-average comparison use it.
-        physics = self.epv.surface(contact, defenders, defend)
+        # Blockers are judged at the hit: on the 3rd touch the hit is now; on a pass or
+        # set the attack comes one set later (measured set time). Serves aren't blocked.
+        attacking_now = on_ball is not None and on_ball.team == attack and touch_kind == "attack"
+        time_to_hit = 0.0 if attacking_now else SET_TIME_S
+        physics = self.epv.surface(contact, defenders, defend, time_to_hit=time_to_hit)
 
         # On the 1st and 2nd touch (pass, set), or when the player on the ball has no attack
         # that can land in, the advice is who to set: the teammate whose position gives the
         # best possible attack. The 3rd touch is the attack itself.
         set_to = None
-        passing = on_ball is not None and on_ball.team == attack and self._touch_count < 3
+        serving = any(s.zone == "serve" for s in self.epv.available_shots(contact, attack))
+        # A pass or set (or a ball held away from the baseline) is played on to a hitter.
+        passing = (on_ball is not None and on_ball.team == attack and not serving
+                   and touch_kind in ("pass", "set", "hold"))
+        passer = on_ball.id if passing else None
         if passing or physics.values.max() <= 0:
             best = -1.0 if passing else physics.values.max()
             for mate in by_team[attack]:
                 if key is not None and mate.id == key.id:
                     continue
-                option = self.epv.surface((mate.x, mate.y), defenders, defend)
+                option = self.epv.surface((mate.x, mate.y), defenders, defend, time_to_hit=SET_TIME_S)
                 if option.values.max() > best:
                     best, physics, set_to = option.values.max(), option, mate
             if set_to is not None:
@@ -389,12 +411,17 @@ class InsightEngine:
         elif on_ball is not None:
             self._planned_hitter = None
 
-        # Combined surface: physics EPV re-ranked by the HRN's shot and zone beliefs.
+        # Combined surface: physics EPV re-ranked by the HRN's shot and zone beliefs, each
+        # weighted by the HRN's measured skill on held-out data (no skill = no influence,
+        # so a model that only learned "always Zone 6" can't pin the advice there).
         surface, target_source = physics, "physics"
-        if pred is not None and "shot_probs" in pred:
+        w_shot = w * self.learned.shot_skill if self.learned is not None else 0.0
+        w_zone = w * self.learned.zone_skill if self.learned is not None else 0.0
+        if pred is not None and "shot_probs" in pred and (w_shot > 0 or w_zone > 0):
             surface = self.epv.surface(contact, defenders, defend,
-                                       shot_prior=pred["shot_probs"], prior_weight=w)
-            surface.apply_zone_prior(self._zone_grid(surface), pred["zone_probs"], w)
+                                       shot_prior=pred["shot_probs"], prior_weight=w_shot,
+                                       time_to_hit=physics.time_to_hit)
+            surface.apply_zone_prior(self._zone_grid(surface), pred["zone_probs"], w_zone)
             # Rescale to the physics range so the map keeps a probability-like scale.
             peak = surface.values.max()
             if peak > 1e-9:
@@ -431,7 +458,11 @@ class InsightEngine:
             self._candidate_frames += 1
         else:
             self._candidate, self._candidate_frames = candidate, 1
-        if self._candidate != self._move and (self._candidate_frames >= self.move_debounce or possession_changed or first_possession):
+        # A different hitter means a different attack: show it at once, without waiting.
+        hitter_changed = key_player != self._move_hitter
+        self._move_hitter = key_player
+        if self._candidate != self._move and (self._candidate_frames >= self.move_debounce or possession_changed
+                                              or first_possession or hitter_changed):
             self._move = self._candidate
             move_changed = True
 
@@ -440,9 +471,22 @@ class InsightEngine:
         self._stats = raw_stats if possession_changed else self._ema(self._stats, raw_stats)
         epv, block, risk, at["flight_t"], at["defender_t"] = map(float, self._stats)
 
+        # Phase of the rally: "where to hit" is shown only when a hit over the net is coming.
+        if on_ball is not None and on_ball.team == attack:
+            phase = "serve" if serving else {"attack": "attack", "set": "set"}.get(touch_kind, "pass")
+            if phase == "set":
+                self._last_set_frame = frame_idx
+        elif (self._planned_hitter is not None and self._last_set_frame is not None
+              and frame_idx - self._last_set_frame <= 1.5 * SET_TIME_S * 30):
+            phase = "set"          # the set is on its way to the hitter
+        else:
+            phase = "in flight"
+        attack_chance = phase in ("serve", "set", "attack")
+
         detail = f"ball {at['flight_t']:.2f} s  vs  defender {at['defender_t']:.2f} s"
         if set_to is not None:
-            detail = f"set to #{set_to.id}  ·  {detail}"
+            detail = (f"set by #{passer}  ·  {detail}" if passer is not None
+                      else f"set to #{set_to.id}  ·  {detail}")
 
         return FrameInsight(
             frame=frame_idx,
@@ -472,5 +516,8 @@ class InsightEngine:
             shape_source=shape_source,
             hrn_prediction=hrn_prediction,
             ball_near=on_ball is not None,
+            phase=phase,
+            attack_chance=attack_chance,
+            passer=passer,
             toucher=on_ball.id if on_ball is not None else None,
         )

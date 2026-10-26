@@ -21,10 +21,10 @@
     "fps": 30.0
   },
   "timing_s": {
-    "data": 20.9,
-    "gat": 27.2,
-    "hrn": 193.6,
-    "total": 242.7
+    "data": 22.0,
+    "gat": 25.0,
+    "hrn": 188.2,
+    "total": 236.0
   },
   "gat": {
     "best_epoch": 99,
@@ -36,15 +36,15 @@
     }
   },
   "hrn": {
-    "best_epoch": 27,
+    "best_epoch": 1,
     "test": {
       "frames_evaluated": 63,
-      "zone_accuracy": 0.6666666666666666,
-      "zone_majority_baseline": 0.6825396825396826,
-      "shot_accuracy": 0.9523809523809523,
-      "shot_majority_baseline": 0.9523809523809523,
-      "threat_mae": 0.13187823518096872,
-      "team_shape_mae": 0.05995479722817739
+      "zone_accuracy": 0.4603174603174603,
+      "zone_majority_baseline": 0.49206349206349204,
+      "shot_accuracy": 0.9206349206349206,
+      "shot_majority_baseline": 0.9206349206349206,
+      "threat_mae": 0.30260237832552783,
+      "team_shape_mae": 0.06559365931602698
     }
   }
 }

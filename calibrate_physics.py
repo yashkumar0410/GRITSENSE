@@ -109,8 +109,22 @@ def touch_heights(player_data, camera):
         rec = player_data.get(str(e["frame"]), {}).get(str(e["player"]))
         if rec is not None:
             height, _ = ball_offset_from_player(camera, e["frame"], rec, positions[e["frame"]])
-            heights.append({"frame": e["frame"], "player": e["player"], "height_m": round(height, 2)})
+            heights.append({"frame": e["frame"], "player": e["player"], "height_m": round(height, 2),
+                            "team": int(rec.get("team", -1)), "kind": e["kind"]})
     return heights
+
+
+MAX_SET_GAP_S = 1.5
+
+
+def set_times(touches, fps=FPS):
+    """Time from each set to the same team's next touch (the attack), in seconds."""
+    out = []
+    for a, b in zip(touches, touches[1:]):
+        dt = (b["frame"] - a["frame"]) / fps
+        if a["kind"] == "set" and a["team"] == b["team"] and dt <= MAX_SET_GAP_S:
+            out.append(round(dt, 3))
+    return out
 
 
 def attack_situations(player_data, annotations, camera):
@@ -173,6 +187,7 @@ def main():
         E.BLOCK_JUMP = block_jump
         E.STANDING_BLOCK_REACH = C.value("block_reach_m") - block_jump
     touches = touch_heights(player_data, camera)
+    sets = set_times(touches)
     print("Validating against published attack success (runs the insight engine over the clip)...")
     spike_best, spike_average, n_spike = validate_attacks(attack_situations(player_data, annotations, camera))
 
@@ -180,6 +195,7 @@ def main():
         "top_speed_mps": round(top_speed, 2) if SPEED_RANGE[0] <= top_speed <= SPEED_RANGE[1] else None,
         "stature_m": round(stature, 2),
         "block_jump_m": round(block_jump, 2) if block_jump else None,
+        "set_time_s": round(float(np.median(sets)), 3) if sets else None,
         "measured": {
             "camera_focal_px": camera.focal,
             "camera_centre_median_m": [round(float(v), 2) for v in np.median(centres, axis=0)],
@@ -195,6 +211,7 @@ def main():
             "ball_clean_pairs": int(len(balls)),
             "ball_horizontal_max_mps": round(float(balls.max()), 1) if len(balls) else None,
             "touches": touches,
+            "set_to_attack_times_s": sets,
             "touch_height_max_m": max((t["height_m"] for t in touches), default=None),
             "validation_spike_frames": n_spike,
             "validation_best_target_point_chance": round(spike_best, 4),

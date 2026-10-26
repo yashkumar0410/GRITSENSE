@@ -64,7 +64,7 @@ def key_matchups(epv: PhysicsEPV, surface: PhysicsSurface, defenders, key_attack
     impacts = []
     for i, d in enumerate(defenders):
         others = defenders[:i] + defenders[i + 1:]
-        without = epv.surface(surface.contact, others, surface.defend_side)
+        without = epv.surface(surface.contact, others, surface.defend_side, time_to_hit=surface.time_to_hit)
         impacts.append(max(0.0, threat(without) - base))
     total = sum(impacts)
     matchups = [

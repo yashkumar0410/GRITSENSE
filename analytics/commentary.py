@@ -150,10 +150,10 @@ class CommentaryGenerator:
         kind = None
         if ins.possession_changed and since > 20:
             kind, template = "possession", self._pick("possession", _POSSESSION)
-        elif self._pending_move and since > 30:
+        elif self._pending_move and since > 30 and ins.attack_chance:
             self._pending_move = False
             kind, template = "move", self._pick("move", _MOVE)
-        elif not self.history and since > 0:
+        elif not self.history and since > 0 and ins.attack_chance:
             kind, template = "move", self._pick("move", _MOVE)
         elif since > self.insight_every:
             if ins.matchups and self.rng.random() < 0.5:
