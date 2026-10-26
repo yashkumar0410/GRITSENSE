@@ -1,6 +1,6 @@
 import importlib
 
-__all__ = ["GAT", "HRN", "HRNClassifier"]
+__all__ = ["GAT", "HRN"]
 
 
 class _LazyClassProxy:
@@ -28,8 +28,6 @@ def __getattr__(name: str):
         return _LazyClassProxy(".gat", "GAT")
     if name == "HRN":
         return _LazyClassProxy(".hrn", "HRN")
-    if name == "HRNClassifier":
-        return _LazyClassProxy(".hrn_classifier", "HRNClassifier")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

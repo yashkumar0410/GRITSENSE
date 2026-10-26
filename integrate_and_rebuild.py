@@ -55,7 +55,8 @@ NEW_PLAYER_FILE = (
     ROOT / "player_keypoints_mf3_pose.json"
 )
 
-BALL_FILE = ROOT / "ball.csv"
+# Prefer the cleaned ball track (clean_ball_track.py) when it exists.
+BALL_FILE = ROOT / "ball_clean.csv" if (ROOT / "ball_clean.csv").exists() else ROOT / "ball.csv"
 
 
 # ============================================================
@@ -131,11 +132,12 @@ SEQUENCE_STRIDE = 1
 # OPTIONAL CHECKPOINTS
 # ============================================================
 
-# Keep these as None unless you actually have trained
-# GAT / HRN checkpoints.
+# Trained by train_gat_hrn.py. When the files are missing the
+# models run with their current (untrained) weights.
 
-GAT_CHECKPOINT = None
-HRN_CHECKPOINT = None
+_CHECKPOINT_DIR = Path(__file__).resolve().parent / "checkpoints"
+GAT_CHECKPOINT = _CHECKPOINT_DIR / "gat.pt" if (_CHECKPOINT_DIR / "gat.pt").exists() else None
+HRN_CHECKPOINT = _CHECKPOINT_DIR / "hrn.pt" if (_CHECKPOINT_DIR / "hrn.pt").exists() else None
 
 
 # ============================================================

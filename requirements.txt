@@ -3,3 +3,8 @@ ultralytics
 torch
 supervision
 numpy
+torch_geometric
+pillow
+matplotlib
+anthropic
+transformers
