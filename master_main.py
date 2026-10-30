@@ -490,6 +490,18 @@ def run_existing_downstream(temporal_model="gru", temporal_checkpoint=None):
     visualize_recent_graphs.main()
 
 
+def run_pretrained_group_activity(video_path: Path) -> None:
+    """Run the pretrained group-activity GAT from GAT/ next to the project's own GAT/HRN."""
+    print("\n" + "=" * 76)
+    print("STAGE 3b — PRETRAINED GROUP-ACTIVITY GAT (GAT/ RCRG-R2-C11-conc-temporal)")
+    print("=" * 76)
+    try:
+        import group_activity
+        group_activity.run(video_path, ROOT / "player_keypoints_mf3_pose.json")
+    except Exception as exc:  # optional stage: never block the rest of the pipeline
+        print(f"Pretrained group-activity GAT skipped: {type(exc).__name__}: {exc}")
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Run the GRITSENSE video-to-temporal pipeline.")
     parser.add_argument(
@@ -564,6 +576,7 @@ def main():
         temporal_model=args.temporal_model,
         temporal_checkpoint=args.temporal_checkpoint,
     )
+    run_pretrained_group_activity(video_path)
     if args.dashboard:
         run_dashboard(video_path, args.teams)
 

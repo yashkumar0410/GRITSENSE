@@ -6,5 +6,6 @@ numpy
 torch_geometric
 pillow
 matplotlib
-anthropic
 transformers
+flask
+imageio-ffmpeg

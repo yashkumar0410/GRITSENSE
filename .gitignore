@@ -3,3 +3,6 @@ __pycache__/
 .venv/
 venv/
 
+webapp/jobs/
+webapp/sample_backup/
+GAT/pretrained_checkpoints/
