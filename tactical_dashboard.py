@@ -48,7 +48,7 @@ from analytics.camera import Camera
 from analytics.epv import TOP_SPEED
 from analytics.motion import MotionSmoother
 from analytics.pose_signals import JumpDetector
-from analytics.nlp import DEFAULT_CLAUDE_MODEL, DEFAULT_LOCAL_MODEL, build_backend
+from analytics.nlp import DEFAULT_LOCAL_MODEL, build_backend
 
 
 ROOT = Path(__file__).resolve().parent
@@ -518,10 +518,102 @@ def _bar(d, x, y, w, h, frac, color):
     d.rounded_rectangle((x, y, x + fw, y + h), radius=h // 2, fill=color)
 
 
+# ----------------------------------------------------------------------------
+# Pretrained group-activity GAT (group_activity.py, GAT/ checkpoint)
+# ----------------------------------------------------------------------------
+
+GROUP_ACTIVITY_FILE = ROOT / "output_recent" / "group_activity" / "group_activity.json"
+ACTIVITY_RGB = {"pass": (96, 165, 250), "set": ACCENT, "spike": AMBER, "winpoint": LIVE_RED}
+
+
+def split_activity(label: str) -> tuple[int, str]:
+    """'l-spike' / 'r_winpoint' -> (team 0 = left / 1 = right, 'spike')."""
+    return (0 if label[0] == "l" else 1), label[2:]
+
+
+def load_group_activity(video_path: Path, players_path: Path, frame_count: int):
+    """Window predictions for this video: reuse master_main's output, else run the model."""
+    try:
+        data = json.loads(GROUP_ACTIVITY_FILE.read_text(encoding="utf-8"))
+        fresh = (Path(data["video"]).resolve() == video_path.resolve()
+                 and abs(data["frames"] - frame_count) <= 2)
+    except (OSError, ValueError, KeyError):
+        fresh = False
+    if not fresh:
+        try:
+            import group_activity
+            print("Running the pretrained group-activity GAT for this video")
+            data = group_activity.run(video_path, players_path, GROUP_ACTIVITY_FILE)
+        except Exception as exc:
+            print(f"Pretrained group-activity GAT unavailable ({type(exc).__name__}: {exc})")
+            return None
+    lookup = [None] * data["frames"]
+    for i, w in enumerate(data["windows"]):
+        for f in range(w["start_frame"], min(w["end_frame"] + 1, data["frames"])):
+            lookup[f] = i
+    print(f"Pretrained group-activity GAT: {len(data['windows'])} windows")
+    return {**data, "lookup": lookup}
+
+
+def group_activity_at(ga, frame_idx: int):
+    if ga is None or frame_idx >= len(ga["lookup"]) or ga["lookup"][frame_idx] is None:
+        return None
+    return ga["windows"][ga["lookup"][frame_idx]]
+
+
+def _dim(rgb, k=0.38):
+    return tuple(int(c * k + BG[i] * (1 - k)) for i, c in enumerate(rgb))
+
+
+def draw_group_activity(d, ga, frame_idx, team_names):
+    """Live action card (top-right of the feed) and the rally timeline (bottom of the feed)."""
+    window = group_activity_at(ga, frame_idx)
+    vx, vy, vw, vh = VIDEO_BOX
+    if window is None:
+        return
+
+    # Rally timeline: one segment per 9-frame window, coloured by action, team edge on top.
+    tx0, tx1 = vx + 14, vx + vw - 14
+    ty0, ty1 = vy + vh - 44, vy + vh - 14
+    d.rounded_rectangle((tx0, ty0, tx1, ty1), radius=10, fill=(8, 12, 20), outline=BORDER, width=1)
+    d.text((tx0 + 12, (ty0 + ty1) / 2), "RALLY", font=FONTS["tag"], fill=MUTED, anchor="lm")
+    sx0, sx1 = tx0 + 64, tx1 - 10
+    n = max(ga["frames"] - 1, 1)
+    fx = lambda f: sx0 + (sx1 - sx0) * f / n
+    cur = ga["lookup"][frame_idx]
+    for i, w in enumerate(ga["windows"]):
+        team, action = split_activity(w["label"])
+        color = ACTIVITY_RGB.get(action, MUTED)
+        a, b = fx(w["start_frame"]), max(fx(w["end_frame"]) - 1, fx(w["start_frame"]) + 2)
+        d.rectangle((a, ty0 + 9, b, ty1 - 7), fill=color if i == cur else _dim(color))
+        d.rectangle((a, ty0 + 6, b, ty0 + 8), fill=TEAM_RGB[team] if i == cur else _dim(TEAM_RGB[team], 0.6))
+    px = fx(frame_idx)
+    d.rectangle((px - 1, ty0 + 3, px + 1, ty1 - 3), fill=TEXT)
+
+    # Live action card.
+    team, action = split_activity(window["label"])
+    color = ACTIVITY_RGB.get(action, TEXT)
+    cw, ch = 300, 96
+    cx1, cy0 = vx + vw - 14, vy + 14
+    cx0 = cx1 - cw
+    d.rounded_rectangle((cx0, cy0, cx1, cy0 + ch), radius=12, fill=(8, 12, 20), outline=color, width=2)
+    d.text((cx0 + 14, cy0 + 12), "GROUP ACTIVITY", font=FONTS["tag"], fill=MUTED)
+    d.text((cx1 - 14, cy0 + 12), "PRETRAINED GAT", font=FONTS["tag"], fill=DIM, anchor="ra")
+    d.text((cx0 + 14, cy0 + 28), action.upper(), font=FONTS["metric"], fill=color)
+    name = team_names[team]
+    nw = d.textlength(name, font=FONTS["tag"]) + 22
+    d.rounded_rectangle((cx1 - 14 - nw, cy0 + 36, cx1 - 14, cy0 + 60), radius=12, fill=TILE,
+                        outline=TEAM_RGB[team], width=2)
+    d.text((cx1 - 14 - nw / 2, cy0 + 48), name, font=FONTS["tag"], fill=TEXT, anchor="mm")
+    _bar(d, cx0 + 14, cy0 + 76, cw - 80, 6, window["score"], color)
+    d.text((cx1 - 14, cy0 + 79), f"{window['score']:.0%}", font=FONTS["small_sb"], fill=TEXT, anchor="rm")
+
+
 def draw_text_layer(canvas_bgr, ins, commentary, epv_history, target_img, frame_idx, fps, team_names,
-                    crop, players):
+                    crop, players, ga=None):
     img = Image.fromarray(canvas_bgr[:, :, ::-1])
     d = ImageDraw.Draw(img)
+    draw_group_activity(d, ga, frame_idx, team_names)
 
     # Header timecode
     secs = frame_idx / fps
@@ -725,9 +817,10 @@ def display_view(ins):
 
 def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, annotations_path: Path,
                      out_dir: Path, team_names: dict[int, str], max_frames: int | None = None,
-                     show: bool = False, snapshot_every: int = 80, nlp: str = "auto",
-                     claude_model: str = DEFAULT_CLAUDE_MODEL, local_model: str = DEFAULT_LOCAL_MODEL,
-                     learned: bool = True, learned_weight: float = 0.3) -> Path:
+                     show: bool = False, snapshot_every: int = 80, nlp: str = "local",
+                     local_model: str = DEFAULT_LOCAL_MODEL,
+                     learned: bool = True, learned_weight: float = 0.3,
+                     group_activity: bool = True) -> Path:
     with players_path.open("r", encoding="utf-8") as f:
         player_data = json.load(f)
     with annotations_path.open("r", encoding="utf-8") as f:
@@ -759,7 +852,7 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
     else:
         print("Physics only")
     engine = InsightEngine(learned=learned_models, learned_weight=learned_weight)
-    backend = build_backend(nlp, claude_model=claude_model, local_model=local_model)
+    backend = build_backend(nlp, local_model=local_model)
     commentary = CommentaryGenerator(team_names, fps, backend=backend)
     print(f"Commentary engine: {commentary.source}")
     ball_state = BallState()
@@ -768,6 +861,8 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
     touches, touch_events = (detect_touches(load_clean(ball_path), player_data, Camera(annotations))
                              if ball_path.name == "ball_clean.csv" else ({}, []))
     print(f"Ball touches detected: {len(touch_events)}")
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or len(player_data))
+    ga = load_group_activity(video_path, players_path, frame_count) if group_activity else None
     base = build_base(team_names)
     epv_history: list[float] = []
     insights_log = []
@@ -805,10 +900,14 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
             cx, cy, cw, ch = COURT_BOX
             canvas[cy:cy + ch, cx:cx + cw] = draw_tactical(view, players, ball, frame_idx)
             canvas = draw_text_layer(canvas, view, commentary, epv_history, target_img,
-                                     frame_idx, fps, team_names, crop, players)
+                                     frame_idx, fps, team_names, crop, players, ga)
 
             writer.write(canvas)
-            insights_log.append(ins.to_dict())
+            row = ins.to_dict()
+            window = group_activity_at(ga, frame_idx)
+            row["group_activity"] = ({"label": window["label"], "score": window["score"]}
+                                     if window else None)
+            insights_log.append(row)
             if snapshot_every and frame_idx % snapshot_every == 0 and frame_idx > 0:
                 cv2.imwrite(str(out_dir / f"dashboard_{frame_idx:04d}.png"), canvas)
             if show:
@@ -825,6 +924,9 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
 
     with (out_dir / "dashboard_insights.json").open("w", encoding="utf-8") as f:
         json.dump(insights_log, f, indent=1)
+    if ga is not None:
+        with (out_dir / "group_activity.json").open("w", encoding="utf-8") as f:
+            json.dump({k: v for k, v in ga.items() if k != "lookup"}, f, indent=1)
     with (out_dir / "commentary.txt").open("w", encoding="utf-8") as f:
         for line in commentary.history:
             f.write(f"[{line.timestamp}] ({line.kind}, {line.source}) {line.text}\n")
@@ -845,16 +947,17 @@ def parse_args():
                         help="Team names for the left (team 0) and right (team 1) halves.")
     parser.add_argument("--max-frames", type=int, default=None)
     parser.add_argument("--show", action="store_true", help="Show a live preview window (q to quit).")
-    parser.add_argument("--nlp", choices=("auto", "claude", "local", "template"), default="auto",
-                        help="Commentary engine: Claude API, local transformers LLM, or templates. "
-                             "'auto' tries Claude, then the local model, then templates.")
-    parser.add_argument("--claude-model", default=DEFAULT_CLAUDE_MODEL)
+    parser.add_argument("--nlp", choices=("local", "template"), default="local",
+                        help="Commentary engine: offline local transformers LLM (falls back to "
+                             "templates if it can't load), or templates only.")
     parser.add_argument("--local-model", default=DEFAULT_LOCAL_MODEL,
                         help="Hugging Face model id for --nlp local.")
     parser.add_argument("--physics-only", action="store_true",
                         help="Ignore the trained GAT / HRN and use the physics models alone.")
     parser.add_argument("--learned-weight", type=float, default=0.3,
                         help="Share of the trained GAT / HRN in every combined output (0-1).")
+    parser.add_argument("--no-group-activity", action="store_true",
+                        help="Hide the pretrained group-activity GAT (GAT/) card and rally timeline.")
     return parser.parse_args()
 
 
@@ -875,10 +978,10 @@ def main():
         max_frames=args.max_frames,
         show=args.show,
         nlp=args.nlp,
-        claude_model=args.claude_model,
         local_model=args.local_model,
         learned=not args.physics_only,
         learned_weight=args.learned_weight,
+        group_activity=not args.no_group_activity,
     )
 
 

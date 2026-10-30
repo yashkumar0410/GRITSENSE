@@ -1,0 +1,682 @@
+{
+  "model": "RCRG-R2-C11-conc-temporal-V1 (pretrained GAT, Volleyball dataset)",
+  "checkpoint": "GAT\\pretrained_checkpoints\\RCRG-R2-C11-conc-temporal-V1\\checkpoint_epoch_42.pkl",
+  "video": "C:\\Users\\yashk\\OneDrive\\Desktop\\this_is_final\\this_is_final\\sample3.mp4",
+  "frames": 319,
+  "window_size": 9,
+  "stride": 9,
+  "classes": [
+    "r_set",
+    "r_spike",
+    "r-pass",
+    "r_winpoint",
+    "l_winpoint",
+    "l-pass",
+    "l-spike",
+    "l_set"
+  ],
+  "overall": {
+    "label": "l-pass",
+    "score": 0.1963,
+    "probabilities": {
+      "r_set": 0.0889,
+      "r_spike": 0.0737,
+      "r-pass": 0.1729,
+      "r_winpoint": 0.0872,
+      "l_winpoint": 0.1246,
+      "l-pass": 0.1963,
+      "l-spike": 0.1218,
+      "l_set": 0.1346
+    }
+  },
+  "windows": [
+    {
+      "start_frame": 0,
+      "end_frame": 8,
+      "start_s": 0.0,
+      "end_s": 0.3,
+      "label": "r_winpoint",
+      "score": 0.466,
+      "probabilities": {
+        "r_set": 0.0401,
+        "r_spike": 0.0968,
+        "r-pass": 0.1003,
+        "r_winpoint": 0.466,
+        "l_winpoint": 0.0555,
+        "l-pass": 0.1858,
+        "l-spike": 0.0385,
+        "l_set": 0.017
+      }
+    },
+    {
+      "start_frame": 9,
+      "end_frame": 17,
+      "start_s": 0.3,
+      "end_s": 0.6,
+      "label": "r_winpoint",
+      "score": 0.285,
+      "probabilities": {
+        "r_set": 0.03,
+        "r_spike": 0.1685,
+        "r-pass": 0.1743,
+        "r_winpoint": 0.285,
+        "l_winpoint": 0.0739,
+        "l-pass": 0.135,
+        "l-spike": 0.0487,
+        "l_set": 0.0845
+      }
+    },
+    {
+      "start_frame": 18,
+      "end_frame": 26,
+      "start_s": 0.6,
+      "end_s": 0.9,
+      "label": "l-pass",
+      "score": 0.4247,
+      "probabilities": {
+        "r_set": 0.0939,
+        "r_spike": 0.1571,
+        "r-pass": 0.0464,
+        "r_winpoint": 0.132,
+        "l_winpoint": 0.09,
+        "l-pass": 0.4247,
+        "l-spike": 0.0333,
+        "l_set": 0.0226
+      }
+    },
+    {
+      "start_frame": 27,
+      "end_frame": 35,
+      "start_s": 0.9,
+      "end_s": 1.2,
+      "label": "l-pass",
+      "score": 0.5887,
+      "probabilities": {
+        "r_set": 0.069,
+        "r_spike": 0.0612,
+        "r-pass": 0.0484,
+        "r_winpoint": 0.1346,
+        "l_winpoint": 0.0511,
+        "l-pass": 0.5887,
+        "l-spike": 0.0267,
+        "l_set": 0.0203
+      }
+    },
+    {
+      "start_frame": 36,
+      "end_frame": 44,
+      "start_s": 1.2,
+      "end_s": 1.5,
+      "label": "l-pass",
+      "score": 0.636,
+      "probabilities": {
+        "r_set": 0.0313,
+        "r_spike": 0.029,
+        "r-pass": 0.0685,
+        "r_winpoint": 0.1213,
+        "l_winpoint": 0.0678,
+        "l-pass": 0.636,
+        "l-spike": 0.0168,
+        "l_set": 0.0293
+      }
+    },
+    {
+      "start_frame": 45,
+      "end_frame": 53,
+      "start_s": 1.5,
+      "end_s": 1.8,
+      "label": "l-pass",
+      "score": 0.6628,
+      "probabilities": {
+        "r_set": 0.0199,
+        "r_spike": 0.043,
+        "r-pass": 0.0294,
+        "r_winpoint": 0.0799,
+        "l_winpoint": 0.0704,
+        "l-pass": 0.6628,
+        "l-spike": 0.0456,
+        "l_set": 0.049
+      }
+    },
+    {
+      "start_frame": 54,
+      "end_frame": 62,
+      "start_s": 1.8,
+      "end_s": 2.1,
+      "label": "l-pass",
+      "score": 0.4544,
+      "probabilities": {
+        "r_set": 0.0379,
+        "r_spike": 0.0953,
+        "r-pass": 0.0322,
+        "r_winpoint": 0.0638,
+        "l_winpoint": 0.0902,
+        "l-pass": 0.4544,
+        "l-spike": 0.0577,
+        "l_set": 0.1684
+      }
+    },
+    {
+      "start_frame": 63,
+      "end_frame": 71,
+      "start_s": 2.1,
+      "end_s": 2.4,
+      "label": "l_set",
+      "score": 0.5319,
+      "probabilities": {
+        "r_set": 0.036,
+        "r_spike": 0.0588,
+        "r-pass": 0.0161,
+        "r_winpoint": 0.0673,
+        "l_winpoint": 0.0859,
+        "l-pass": 0.1732,
+        "l-spike": 0.0308,
+        "l_set": 0.5319
+      }
+    },
+    {
+      "start_frame": 72,
+      "end_frame": 80,
+      "start_s": 2.4,
+      "end_s": 2.7,
+      "label": "l_set",
+      "score": 0.8336,
+      "probabilities": {
+        "r_set": 0.0136,
+        "r_spike": 0.0258,
+        "r-pass": 0.0101,
+        "r_winpoint": 0.0479,
+        "l_winpoint": 0.0371,
+        "l-pass": 0.0155,
+        "l-spike": 0.0164,
+        "l_set": 0.8336
+      }
+    },
+    {
+      "start_frame": 81,
+      "end_frame": 89,
+      "start_s": 2.7,
+      "end_s": 3.0,
+      "label": "l_set",
+      "score": 0.5763,
+      "probabilities": {
+        "r_set": 0.0178,
+        "r_spike": 0.042,
+        "r-pass": 0.0593,
+        "r_winpoint": 0.0805,
+        "l_winpoint": 0.0685,
+        "l-pass": 0.095,
+        "l-spike": 0.0605,
+        "l_set": 0.5763
+      }
+    },
+    {
+      "start_frame": 90,
+      "end_frame": 98,
+      "start_s": 3.0,
+      "end_s": 3.3,
+      "label": "l-spike",
+      "score": 0.7539,
+      "probabilities": {
+        "r_set": 0.0186,
+        "r_spike": 0.0336,
+        "r-pass": 0.0114,
+        "r_winpoint": 0.0359,
+        "l_winpoint": 0.0704,
+        "l-pass": 0.048,
+        "l-spike": 0.7539,
+        "l_set": 0.0283
+      }
+    },
+    {
+      "start_frame": 99,
+      "end_frame": 107,
+      "start_s": 3.3,
+      "end_s": 3.6,
+      "label": "l-spike",
+      "score": 0.8721,
+      "probabilities": {
+        "r_set": 0.0085,
+        "r_spike": 0.0318,
+        "r-pass": 0.0183,
+        "r_winpoint": 0.029,
+        "l_winpoint": 0.0246,
+        "l-pass": 0.0094,
+        "l-spike": 0.8721,
+        "l_set": 0.0063
+      }
+    },
+    {
+      "start_frame": 108,
+      "end_frame": 116,
+      "start_s": 3.6,
+      "end_s": 3.9,
+      "label": "l-spike",
+      "score": 0.3721,
+      "probabilities": {
+        "r_set": 0.0161,
+        "r_spike": 0.1075,
+        "r-pass": 0.2926,
+        "r_winpoint": 0.1237,
+        "l_winpoint": 0.0584,
+        "l-pass": 0.0194,
+        "l-spike": 0.3721,
+        "l_set": 0.0102
+      }
+    },
+    {
+      "start_frame": 117,
+      "end_frame": 125,
+      "start_s": 3.9,
+      "end_s": 4.2,
+      "label": "r-pass",
+      "score": 0.7207,
+      "probabilities": {
+        "r_set": 0.0458,
+        "r_spike": 0.0285,
+        "r-pass": 0.7207,
+        "r_winpoint": 0.1009,
+        "l_winpoint": 0.039,
+        "l-pass": 0.0174,
+        "l-spike": 0.0364,
+        "l_set": 0.0112
+      }
+    },
+    {
+      "start_frame": 126,
+      "end_frame": 134,
+      "start_s": 4.2,
+      "end_s": 4.5,
+      "label": "r-pass",
+      "score": 0.8789,
+      "probabilities": {
+        "r_set": 0.0118,
+        "r_spike": 0.0117,
+        "r-pass": 0.8789,
+        "r_winpoint": 0.0452,
+        "l_winpoint": 0.0315,
+        "l-pass": 0.006,
+        "l-spike": 0.0094,
+        "l_set": 0.0056
+      }
+    },
+    {
+      "start_frame": 135,
+      "end_frame": 143,
+      "start_s": 4.5,
+      "end_s": 4.8,
+      "label": "r-pass",
+      "score": 0.8386,
+      "probabilities": {
+        "r_set": 0.0388,
+        "r_spike": 0.0122,
+        "r-pass": 0.8386,
+        "r_winpoint": 0.0519,
+        "l_winpoint": 0.0299,
+        "l-pass": 0.0075,
+        "l-spike": 0.0159,
+        "l_set": 0.0052
+      }
+    },
+    {
+      "start_frame": 144,
+      "end_frame": 152,
+      "start_s": 4.8,
+      "end_s": 5.1,
+      "label": "r-pass",
+      "score": 0.8228,
+      "probabilities": {
+        "r_set": 0.0382,
+        "r_spike": 0.018,
+        "r-pass": 0.8228,
+        "r_winpoint": 0.0514,
+        "l_winpoint": 0.0381,
+        "l-pass": 0.008,
+        "l-spike": 0.0142,
+        "l_set": 0.0093
+      }
+    },
+    {
+      "start_frame": 153,
+      "end_frame": 161,
+      "start_s": 5.1,
+      "end_s": 5.4,
+      "label": "r-pass",
+      "score": 0.7513,
+      "probabilities": {
+        "r_set": 0.0503,
+        "r_spike": 0.0483,
+        "r-pass": 0.7513,
+        "r_winpoint": 0.0481,
+        "l_winpoint": 0.0626,
+        "l-pass": 0.0127,
+        "l-spike": 0.0144,
+        "l_set": 0.0124
+      }
+    },
+    {
+      "start_frame": 162,
+      "end_frame": 170,
+      "start_s": 5.4,
+      "end_s": 5.7,
+      "label": "r_set",
+      "score": 0.7625,
+      "probabilities": {
+        "r_set": 0.7625,
+        "r_spike": 0.0221,
+        "r-pass": 0.0715,
+        "r_winpoint": 0.0426,
+        "l_winpoint": 0.0522,
+        "l-pass": 0.0112,
+        "l-spike": 0.0123,
+        "l_set": 0.0256
+      }
+    },
+    {
+      "start_frame": 171,
+      "end_frame": 179,
+      "start_s": 5.7,
+      "end_s": 6.0,
+      "label": "r_set",
+      "score": 0.825,
+      "probabilities": {
+        "r_set": 0.825,
+        "r_spike": 0.0156,
+        "r-pass": 0.0566,
+        "r_winpoint": 0.034,
+        "l_winpoint": 0.0336,
+        "l-pass": 0.012,
+        "l-spike": 0.0144,
+        "l_set": 0.0087
+      }
+    },
+    {
+      "start_frame": 180,
+      "end_frame": 188,
+      "start_s": 6.0,
+      "end_s": 6.3,
+      "label": "r_set",
+      "score": 0.5074,
+      "probabilities": {
+        "r_set": 0.5074,
+        "r_spike": 0.1257,
+        "r-pass": 0.1678,
+        "r_winpoint": 0.0868,
+        "l_winpoint": 0.0533,
+        "l-pass": 0.017,
+        "l-spike": 0.0265,
+        "l_set": 0.0155
+      }
+    },
+    {
+      "start_frame": 189,
+      "end_frame": 197,
+      "start_s": 6.3,
+      "end_s": 6.6,
+      "label": "r-pass",
+      "score": 0.2028,
+      "probabilities": {
+        "r_set": 0.1752,
+        "r_spike": 0.0972,
+        "r-pass": 0.2028,
+        "r_winpoint": 0.0705,
+        "l_winpoint": 0.1804,
+        "l-pass": 0.1763,
+        "l-spike": 0.0724,
+        "l_set": 0.025
+      }
+    },
+    {
+      "start_frame": 198,
+      "end_frame": 206,
+      "start_s": 6.6,
+      "end_s": 6.9,
+      "label": "l-pass",
+      "score": 0.3641,
+      "probabilities": {
+        "r_set": 0.0378,
+        "r_spike": 0.3447,
+        "r-pass": 0.0302,
+        "r_winpoint": 0.0465,
+        "l_winpoint": 0.0979,
+        "l-pass": 0.3641,
+        "l-spike": 0.0537,
+        "l_set": 0.025
+      }
+    },
+    {
+      "start_frame": 207,
+      "end_frame": 215,
+      "start_s": 6.9,
+      "end_s": 7.2,
+      "label": "l-pass",
+      "score": 0.7692,
+      "probabilities": {
+        "r_set": 0.026,
+        "r_spike": 0.0208,
+        "r-pass": 0.0471,
+        "r_winpoint": 0.0427,
+        "l_winpoint": 0.046,
+        "l-pass": 0.7692,
+        "l-spike": 0.0338,
+        "l_set": 0.0143
+      }
+    },
+    {
+      "start_frame": 216,
+      "end_frame": 224,
+      "start_s": 7.2,
+      "end_s": 7.5,
+      "label": "l-pass",
+      "score": 0.5645,
+      "probabilities": {
+        "r_set": 0.02,
+        "r_spike": 0.0333,
+        "r-pass": 0.0339,
+        "r_winpoint": 0.1494,
+        "l_winpoint": 0.1059,
+        "l-pass": 0.5645,
+        "l-spike": 0.0538,
+        "l_set": 0.0391
+      }
+    },
+    {
+      "start_frame": 225,
+      "end_frame": 233,
+      "start_s": 7.5,
+      "end_s": 7.8,
+      "label": "l-pass",
+      "score": 0.4753,
+      "probabilities": {
+        "r_set": 0.0447,
+        "r_spike": 0.0343,
+        "r-pass": 0.0218,
+        "r_winpoint": 0.1516,
+        "l_winpoint": 0.1811,
+        "l-pass": 0.4753,
+        "l-spike": 0.0313,
+        "l_set": 0.0599
+      }
+    },
+    {
+      "start_frame": 234,
+      "end_frame": 242,
+      "start_s": 7.8,
+      "end_s": 8.1,
+      "label": "l-pass",
+      "score": 0.6916,
+      "probabilities": {
+        "r_set": 0.0189,
+        "r_spike": 0.0281,
+        "r-pass": 0.0311,
+        "r_winpoint": 0.0682,
+        "l_winpoint": 0.0596,
+        "l-pass": 0.6916,
+        "l-spike": 0.0458,
+        "l_set": 0.0566
+      }
+    },
+    {
+      "start_frame": 243,
+      "end_frame": 251,
+      "start_s": 8.1,
+      "end_s": 8.4,
+      "label": "l_set",
+      "score": 0.6976,
+      "probabilities": {
+        "r_set": 0.0148,
+        "r_spike": 0.0407,
+        "r-pass": 0.0165,
+        "r_winpoint": 0.035,
+        "l_winpoint": 0.075,
+        "l-pass": 0.078,
+        "l-spike": 0.0424,
+        "l_set": 0.6976
+      }
+    },
+    {
+      "start_frame": 252,
+      "end_frame": 260,
+      "start_s": 8.4,
+      "end_s": 8.7,
+      "label": "l_set",
+      "score": 0.7719,
+      "probabilities": {
+        "r_set": 0.0181,
+        "r_spike": 0.0631,
+        "r-pass": 0.0136,
+        "r_winpoint": 0.0473,
+        "l_winpoint": 0.0351,
+        "l-pass": 0.0207,
+        "l-spike": 0.0301,
+        "l_set": 0.7719
+      }
+    },
+    {
+      "start_frame": 261,
+      "end_frame": 269,
+      "start_s": 8.7,
+      "end_s": 9.0,
+      "label": "l_set",
+      "score": 0.4831,
+      "probabilities": {
+        "r_set": 0.0261,
+        "r_spike": 0.0634,
+        "r-pass": 0.0639,
+        "r_winpoint": 0.0457,
+        "l_winpoint": 0.1613,
+        "l-pass": 0.0309,
+        "l-spike": 0.1256,
+        "l_set": 0.4831
+      }
+    },
+    {
+      "start_frame": 270,
+      "end_frame": 278,
+      "start_s": 9.0,
+      "end_s": 9.3,
+      "label": "l-spike",
+      "score": 0.2299,
+      "probabilities": {
+        "r_set": 0.0299,
+        "r_spike": 0.09,
+        "r-pass": 0.0952,
+        "r_winpoint": 0.1196,
+        "l_winpoint": 0.2004,
+        "l-pass": 0.1334,
+        "l-spike": 0.2299,
+        "l_set": 0.1015
+      }
+    },
+    {
+      "start_frame": 279,
+      "end_frame": 287,
+      "start_s": 9.3,
+      "end_s": 9.6,
+      "label": "l-spike",
+      "score": 0.3937,
+      "probabilities": {
+        "r_set": 0.0192,
+        "r_spike": 0.1488,
+        "r-pass": 0.026,
+        "r_winpoint": 0.034,
+        "l_winpoint": 0.2839,
+        "l-pass": 0.0577,
+        "l-spike": 0.3937,
+        "l_set": 0.0367
+      }
+    },
+    {
+      "start_frame": 288,
+      "end_frame": 296,
+      "start_s": 9.6,
+      "end_s": 9.9,
+      "label": "l-spike",
+      "score": 0.6454,
+      "probabilities": {
+        "r_set": 0.017,
+        "r_spike": 0.1032,
+        "r-pass": 0.038,
+        "r_winpoint": 0.0595,
+        "l_winpoint": 0.0894,
+        "l-pass": 0.0298,
+        "l-spike": 0.6454,
+        "l_set": 0.0177
+      }
+    },
+    {
+      "start_frame": 297,
+      "end_frame": 305,
+      "start_s": 9.9,
+      "end_s": 10.2,
+      "label": "l_winpoint",
+      "score": 0.4053,
+      "probabilities": {
+        "r_set": 0.0158,
+        "r_spike": 0.2512,
+        "r-pass": 0.1212,
+        "r_winpoint": 0.0651,
+        "l_winpoint": 0.4053,
+        "l-pass": 0.0752,
+        "l-spike": 0.0517,
+        "l_set": 0.0145
+      }
+    },
+    {
+      "start_frame": 306,
+      "end_frame": 314,
+      "start_s": 10.2,
+      "end_s": 10.5,
+      "label": "l_winpoint",
+      "score": 0.6172,
+      "probabilities": {
+        "r_set": 0.0123,
+        "r_spike": 0.0452,
+        "r-pass": 0.1915,
+        "r_winpoint": 0.0471,
+        "l_winpoint": 0.6172,
+        "l-pass": 0.0377,
+        "l-spike": 0.032,
+        "l_set": 0.0171
+      }
+    },
+    {
+      "start_frame": 310,
+      "end_frame": 318,
+      "start_s": 10.333,
+      "end_s": 10.633,
+      "label": "l_winpoint",
+      "score": 0.7625,
+      "probabilities": {
+        "r_set": 0.0136,
+        "r_spike": 0.0575,
+        "r-pass": 0.0743,
+        "r_winpoint": 0.028,
+        "l_winpoint": 0.7625,
+        "l-pass": 0.0212,
+        "l-spike": 0.0282,
+        "l_set": 0.0146
+      }
+    }
+  ]
+}

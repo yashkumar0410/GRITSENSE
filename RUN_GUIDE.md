@@ -1,7 +1,7 @@
 # GRITSENSE: How to Run
 
 This guide covers setting up, running the full pipeline, and producing the tactical
-dashboard with **LLM-written commentary** (Claude or a local model).
+dashboard with **LLM-written commentary** from an offline local model (no API needed).
 
 ---
 
@@ -42,59 +42,58 @@ pip install -r requirements.txt
 
 `requirements.txt` covers the detection pipeline (opencv-python, ultralytics, torch,
 supervision, numpy), the graph models (torch_geometric), training plots (matplotlib),
-the dashboard (pillow) and the commentary LLMs (anthropic, transformers).
+the dashboard (pillow) and the offline commentary LLM (transformers).
 
-## 4. Set up the LLM for commentary
+## 4. Commentary LLM (offline)
 
-The dashboard picks its commentary engine with `--nlp`:
+Commentary is written by a local model, `Qwen/Qwen2.5-3B-Instruct`, running on your
+machine (on the GPU if there is one, otherwise CPU). No API key or internet is needed once the model is cached: the first run
+downloads it (~6 GB) into your Hugging Face cache, and every run after that loads it
+from the cache without touching the network.
 
-| `--nlp` | Engine | Needs | Notes |
-|---|---|---|---|
-| `claude` | Claude (`claude-opus-5-5`) via the Anthropic API | API key + internet | **Recommended**: most accurate and fastest |
-| `local` | `Qwen/Qwen2.5-1.5B-Instruct` on your machine | Nothing (downloads ~3 GB once) | Works offline; slow on CPU (10+ min per video) |
-| `template` | Fixed sentences with the numbers filled in | Nothing | Instant, always accurate, but not an LLM |
-| `auto` (default) | Tries Claude, then local, then template | — | — |
+| `--nlp` | Engine | Notes |
+|---|---|---|
+| `local` (default) | Offline local LLM | Falls back to templates if the model can't load; slow on CPU |
+| `template` | Fixed sentences with the numbers filled in | Instant, always accurate, but not an LLM |
 
-### Option A: Claude (recommended)
-
-1. Create an API key at <https://console.anthropic.com> (Settings → API Keys).
-2. Set it in your terminal:
-
-   ```powershell
-   # Windows PowerShell, current window only
-   $env:ANTHROPIC_API_KEY = "sk-ant-..."
-
-   # Windows, permanently (open a NEW terminal afterwards)
-   setx ANTHROPIC_API_KEY "sk-ant-..."
-   ```
-
-   ```bash
-   # macOS / Linux
-   export ANTHROPIC_API_KEY="sk-ant-..."
-   ```
-
-3. Never put the key in the code or commit it anywhere.
-
-Cost: the dashboard writes roughly 8–12 commentary lines per video (one per event,
-not one per frame), so a run costs very little, well under $1.
-
-### Option B: Local LLM (offline)
-
-Nothing to set up. The first run downloads the model from Hugging Face (~3 GB)
-into your Hugging Face cache. To use a different model:
+To use a different model:
 
 ```powershell
-python tactical_dashboard.py --nlp local --local-model Qwen/Qwen2.5-3B-Instruct
+python tactical_dashboard.py --local-model Qwen/Qwen2.5-7B-Instruct
 ```
 
 Bigger models write better lines but are slower on CPU.
 
 ## 5. Run it
 
+### Web app (recommended)
+
+```powershell
+python webapp/server.py
+```
+
+Open <http://127.0.0.1:5000>. From there you can:
+
+- **Upload video:** drop a match video, click the four court corners on a frame
+  (or upload an `annotations.json`), set team names and press **Run analysis**.
+  This runs the full pipeline (detection → ball cleaning → graphs → dashboard).
+- **Use sample match:** renders the dashboard from the bundled sample in a few minutes.
+
+You can follow progress live. The results page shows the dashboard video with synced
+commentary, a point-chance timeline (click it to seek), recommended plays, key
+defenders, target zones and snapshots, plus downloads. Runs are saved in
+`webapp/jobs/`. Videos that aren't 1080p are scaled to 1080p automatically.
+
+A full run writes its detections into the project root, the same way
+`master_main.py` does. The app backs up the sample's detection files to
+`webapp/sample_backup/` first, so sample runs stay correct.
+
+### Command line
+
 ### A. Dashboard only (fast: uses the detection results already in the folder)
 
 ```powershell
-python tactical_dashboard.py --nlp claude
+python tactical_dashboard.py
 ```
 
 Same thing through the master runner:
@@ -119,8 +118,7 @@ This runs these stages:
 3. **Graph visualisations**
 4. **Tactical dashboard**
 
-Stage 4 uses `--nlp auto`. To force Claude for the full pipeline, set the API key
-first (auto picks Claude whenever the key is set).
+Stage 4 uses the offline local LLM for commentary.
 
 ### C. Improve the ball track
 
@@ -148,6 +146,27 @@ physics model loads automatically. Run it again after adding videos.
 
 Every constant and its source (measured / published / derived / estimated) is listed in
 `analytics/constants.py`.
+
+### C3. Pretrained group-activity GAT
+
+```powershell
+python group_activity.py --video sample3.mp4
+```
+
+Runs the pretrained GAT in `GAT/` (RCRG-R2-C11-conc-temporal-V1, Volleyball dataset)
+next to the project's own GAT/HRN. Every 9-frame window is classified as one of
+`l/r set`, `l/r spike`, `l/r pass` or `l/r winpoint`. The results go to
+`output_recent/group_activity/group_activity.json`. `master_main.py` runs this
+automatically after the graph stage. It only needs torch, torchvision and
+torch_geometric; the extra packages in `GAT/requirements.txt` are not needed.
+
+The dashboard shows it on the video feed: a **Group activity** card (current action,
+team, confidence) at the top right and a colour-coded **rally timeline** along the
+bottom (blue pass, teal set, amber spike, red winpoint; the thin top edge is the team).
+If no predictions exist for the video, the dashboard runs the model first. To turn
+the overlay off, use `python tactical_dashboard.py --no-group-activity`. In the web
+app, results pages also get a **Rally phases** card: a timeline you can click to
+seek, kept in sync with playback, plus each team's split of actions.
 
 ### D. Train the GAT and HRN
 
@@ -182,9 +201,9 @@ shot prediction is shown in the Recommended Play card. "Point chance" stays the 
 probability for the chosen target.
 
 ```powershell
-python tactical_dashboard.py --nlp claude                       # combined (default)
-python tactical_dashboard.py --nlp claude --learned-weight 0.5  # give the models more say
-python tactical_dashboard.py --nlp claude --physics-only        # physics alone
+python tactical_dashboard.py                       # combined (default)
+python tactical_dashboard.py --learned-weight 0.5  # give the models more say
+python tactical_dashboard.py --physics-only        # physics alone
 ```
 
 To retrain after adding more videos, run `master_main.py` on each video first, then
@@ -198,8 +217,8 @@ To retrain after adding more videos, run `master_main.py` on each video first, t
 | `--teams` | `--teams ITA POL` | Team names for the left and right halves |
 | `--max-frames` | `--max-frames 150` | Render only the first N frames (quick test) |
 | `--show` | `--show` | Live preview window while rendering (press `q` to stop) |
-| `--nlp` | `--nlp claude` | Commentary engine (see section 4) |
-| `--claude-model` | `--claude-model claude-sonnet-5-5` | Different Claude model |
+| `--nlp` | `--nlp template` | Commentary engine (see section 4) |
+| `--local-model` | `--local-model Qwen/Qwen2.5-7B-Instruct` | Different local model |
 | `--learned-weight` | `--learned-weight 0.5` | Share of the trained GAT / HRN in the combined outputs (default 0.3) |
 | `--physics-only` | `--physics-only` | Ignore the trained GAT / HRN |
 | `--keep-existing-output` | (master_main only) | Don't clear `output_recent/` first |
@@ -207,7 +226,7 @@ To retrain after adding more videos, run `master_main.py` on each video first, t
 Quick test before a full render:
 
 ```powershell
-python tactical_dashboard.py --nlp claude --max-frames 90 --show
+python tactical_dashboard.py --max-frames 90 --show
 ```
 
 ## 6. Outputs
@@ -226,27 +245,24 @@ All dashboard outputs go to `output_recent/dashboard/`:
 The console prints the engine at the start:
 
 ```
-Commentary engine: CLAUDE
+Commentary engine: LOCAL LLM
 ```
 
 and every line in `commentary.txt` is tagged:
 
 ```
-[00:07.2] (move, CLAUDE) #92 has the angle for BRA...
+[00:07.2] (move, LOCAL LLM) #92 has the angle for BRA...
 ```
 
 A line tagged `TEMPLATE` means the LLM's answer was rejected (it didn't mention the
-real zone and player) or the call failed, so the safe template was used for that line.
+real zone and player) or generation failed, so the safe template was used for that line.
 
 ## 7. Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| `Claude unavailable - Could not resolve authentication method` | API key not set in *this* terminal. Set `$env:ANTHROPIC_API_KEY` again, or open a new terminal after `setx`. |
-| `Claude unavailable - AuthenticationError` | Key is wrong or revoked. Create a new one. |
-| `anthropic SDK not installed` | `pip install anthropic` |
 | `transformers not installed` | `pip install transformers` |
-| Local LLM is very slow | Expected on CPU. Use `--nlp claude`, or `--max-frames` for tests. |
+| Local LLM is very slow | Expected on CPU. Use `--nlp template` or `--max-frames` for tests. |
 | `No module named 'ultralytics'` | `pip install ultralytics` (needed for detection only) |
 | `No module named 'torch_geometric'` | `pip install torch_geometric` (needed for the graph stage only) |
 | Windows symlink warning from Hugging Face | Harmless. Enable Developer Mode to silence it. |

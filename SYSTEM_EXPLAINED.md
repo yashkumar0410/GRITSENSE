@@ -302,8 +302,8 @@ Rules decide when to speak (possession change, new recommended move during an at
 chance, periodic insight); an LLM writes the sentence from computed facts.
 
 **Q: Which LLMs?**
-Claude (`claude-opus-5-5`) through the Anthropic API, or Qwen 2.5 1.5B Instruct running
-locally, with fixed templates as the fallback.
+Qwen 2.5 3B Instruct running fully offline on the local machine (no API), with fixed
+templates as the fallback.
 
 **Q: How do you stop it from making things up?**
 It only receives computed facts, never the video, and each line must mention the real
@@ -324,7 +324,7 @@ zone and player number or the template line is used.
    delay if live).
 5. Ball speed, spin and 3-D path can't be measured from this video.
 6. Player numbers are tracker IDs, not shirt numbers; court corners are annotated by hand.
-7. The Claude commentary path is untested here (no API key); the local LLM is slow.
+7. The offline commentary LLM is slow on CPU.
 
 **Q: What would you do next?**
 More match videos (no code changes needed), training on the Volleyball Dataset, rallies

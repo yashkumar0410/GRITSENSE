@@ -1,18 +1,17 @@
 """
 NLP backends that turn structured match facts into live commentary.
 
-    ClaudeBackend   - Claude via the Anthropic SDK (needs ANTHROPIC_API_KEY or `ant auth login`)
     LocalLLMBackend - small instruction-tuned model via Hugging Face transformers (CPU OK)
 
-`build_backend("auto")` tries Claude, then the local model; it returns None when
-neither is usable, and the commentary generator falls back to its templates.
-A backend that fails at runtime disables itself so rendering never stalls.
+Commentary is fully offline: the model is loaded from the local Hugging Face cache
+and only downloaded if it has never been fetched before. `build_backend` returns
+None when the model can't be loaded, and the commentary generator falls back to its
+templates. A backend that fails at runtime disables itself so rendering never stalls.
 """
 
 from __future__ import annotations
 
 import json
-import os
 
 SYSTEM_PROMPT = (
     "You are a live TV volleyball commentator with a tactical analyst's eye. "
@@ -23,8 +22,7 @@ SYSTEM_PROMPT = (
     "repeat the recent lines, and output only the sentence - no quotes, no preamble."
 )
 
-DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"
-DEFAULT_LOCAL_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
+DEFAULT_LOCAL_MODEL = "Qwen/Qwen2.5-3B-Instruct"
 
 
 def build_prompt(kind: str, facts: dict, recent: list[str]) -> str:
@@ -89,49 +87,24 @@ def _clean(text: str) -> str:
     return text.strip('"').strip("'").strip()
 
 
-class ClaudeBackend:
-    name = "CLAUDE"
-
-    def __init__(self, model: str = DEFAULT_CLAUDE_MODEL):
-        import anthropic
-
-        self._anthropic = anthropic
-        self.client = anthropic.Anthropic()
-        self.model = model
-
-    def generate(self, kind: str, facts: dict, recent: list[str]) -> str | None:
-        anthropic = self._anthropic
-        try:
-            response = self.client.beta.messages.create(
-                model=self.model,
-                max_tokens=2048,
-                # Short single-sentence task: low effort keeps latency down.
-                output_config={"effort": "low"},
-                # Re-route to a fallback model if a safety classifier declines.
-                betas=["server-side-fallback-2026-07-01"],
-                fallbacks="default",
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": build_prompt(kind, facts, recent)}],
-            )
-        except (anthropic.AuthenticationError, anthropic.PermissionDeniedError, anthropic.NotFoundError):
-            raise
-        except (anthropic.RateLimitError, anthropic.APIConnectionError, anthropic.APIStatusError) as exc:
-            print(f"  [nlp] Claude request failed ({type(exc).__name__}); using template for this line")
-            return None
-        if response.stop_reason == "refusal":
-            return None
-        text = next((b.text for b in response.content if b.type == "text"), "")
-        return _clean(text) or None
-
-
 class LocalLLMBackend:
     name = "LOCAL LLM"
 
     def __init__(self, model: str = DEFAULT_LOCAL_MODEL):
+        import torch
+        from huggingface_hub import snapshot_download
         from transformers import pipeline
 
-        print(f"  [nlp] loading local model {model} (first run downloads it)…")
-        self.pipe = pipeline("text-generation", model=model, device=-1)
+        try:
+            # Offline: resolve the cached copy without touching the network.
+            path = snapshot_download(model, local_files_only=True)
+            print(f"  [nlp] loading local model {model} from cache (offline)")
+        except Exception:
+            print(f"  [nlp] {model} not cached yet - downloading once…")
+            path = snapshot_download(model)
+        # GPU when there is one; "auto" dtype keeps the checkpoint's half precision.
+        device = 0 if torch.cuda.is_available() else -1
+        self.pipe = pipeline("text-generation", model=path, device=device, dtype="auto")
 
     def generate(self, kind: str, facts: dict, recent: list[str]) -> str | None:
         # Small models copy whatever text they are shown, so they get plain facts and
@@ -152,34 +125,14 @@ class LocalLLMBackend:
         return _clean(text) or None
 
 
-def build_backend(mode: str = "auto", claude_model: str = DEFAULT_CLAUDE_MODEL,
-                  local_model: str = DEFAULT_LOCAL_MODEL):
-    """Return a ready backend, or None for template-only commentary."""
+def build_backend(mode: str = "local", local_model: str = DEFAULT_LOCAL_MODEL):
+    """Return the offline local backend, or None for template-only commentary."""
     if mode == "template":
         return None
-
-    if mode in ("auto", "claude"):
-        try:
-            backend = ClaudeBackend(claude_model)
-            has_env_creds = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
-            if mode == "claude" or has_env_creds:
-                return backend
-            # No env credentials: probe once so an `ant auth login` profile still works.
-            backend.generate("insight", {"probe": True}, [])
-            return backend
-        except ImportError:
-            reason = "anthropic SDK not installed (pip install anthropic)"
-        except Exception as exc:  # missing/invalid credentials
-            reason = f"{type(exc).__name__}: {exc}".splitlines()[0][:120]
-        print(f"  [nlp] Claude unavailable - {reason}")
-        if mode == "claude":
-            return None
-
-    if mode in ("auto", "local"):
-        try:
-            return LocalLLMBackend(local_model)
-        except ImportError:
-            print("  [nlp] local LLM unavailable - transformers not installed (pip install transformers)")
-        except Exception as exc:
-            print(f"  [nlp] local LLM unavailable - {type(exc).__name__}: {str(exc)[:120]}")
+    try:
+        return LocalLLMBackend(local_model)
+    except ImportError:
+        print("  [nlp] local LLM unavailable - transformers not installed (pip install transformers)")
+    except Exception as exc:
+        print(f"  [nlp] local LLM unavailable - {type(exc).__name__}: {str(exc)[:120]}")
     return None

@@ -2,7 +2,7 @@
 Natural-language commentary for the tactical dashboard.
 
 Rule-based event detection (possession change, new move, periodic model
-signals) decides WHEN to speak; an NLP backend (analytics/nlp.py: Claude or a
+signals) decides WHEN to speak; an NLP backend (analytics/nlp.py: an offline
 local LLM) writes WHAT is said from the structured match facts. Seeded
 templates are kept as the fallback when no backend is available.
 """
