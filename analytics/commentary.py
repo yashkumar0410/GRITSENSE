@@ -12,6 +12,8 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
+from pipeline_profiling import measure
+
 from .insights import ZONE_DESCRIPTIONS, FrameInsight
 from .nlp import is_grounded
 
@@ -131,7 +133,8 @@ class CommentaryGenerator:
         recent = [line.text for line in self.history[-3:]]
         facts = self._facts(ins, slots)
         try:
-            text = self.backend.generate(kind, facts, recent)
+            with measure("commentary.llm_generation"):
+                text = self.backend.generate(kind, facts, recent)
             return text if text and is_grounded(text, facts) else None
         except Exception as exc:
             print(f"  [nlp] {self.backend.name} failed ({type(exc).__name__}: {str(exc)[:100]}); "

@@ -90,7 +90,7 @@ def _clean(text: str) -> str:
 class LocalLLMBackend:
     name = "LOCAL LLM"
 
-    def __init__(self, model: str = DEFAULT_LOCAL_MODEL):
+    def __init__(self, model: str = DEFAULT_LOCAL_MODEL, device="cpu"):
         import torch
         from huggingface_hub import snapshot_download
         from transformers import pipeline
@@ -102,9 +102,14 @@ class LocalLLMBackend:
         except Exception:
             print(f"  [nlp] {model} not cached yet - downloading once…")
             path = snapshot_download(model)
-        # GPU when there is one; "auto" dtype keeps the checkpoint's half precision.
-        device = 0 if torch.cuda.is_available() else -1
-        self.pipe = pipeline("text-generation", model=path, device=device, dtype="auto")
+        requested = torch.device(device)
+        if requested.type == "cpu":
+            pipeline_device = -1
+        elif requested.type == "cuda":
+            pipeline_device = requested.index or 0
+        else:
+            pipeline_device = requested
+        self.pipe = pipeline("text-generation", model=path, device=pipeline_device, dtype="auto")
 
     def generate(self, kind: str, facts: dict, recent: list[str]) -> str | None:
         # Small models copy whatever text they are shown, so they get plain facts and
@@ -125,14 +130,18 @@ class LocalLLMBackend:
         return _clean(text) or None
 
 
-def build_backend(mode: str = "local", local_model: str = DEFAULT_LOCAL_MODEL):
+def build_backend(mode: str = "local", local_model: str = DEFAULT_LOCAL_MODEL, device="cpu"):
     """Return the offline local backend, or None for template-only commentary."""
     if mode == "template":
         return None
     try:
-        return LocalLLMBackend(local_model)
+        return LocalLLMBackend(local_model, device=device)
     except ImportError:
+        if str(device) != "cpu":
+            raise
         print("  [nlp] local LLM unavailable - transformers not installed (pip install transformers)")
     except Exception as exc:
+        if str(device) != "cpu":
+            raise RuntimeError(f"Local commentary model failed on selected device {device}: {exc}") from exc
         print(f"  [nlp] local LLM unavailable - {type(exc).__name__}: {str(exc)[:120]}")
     return None

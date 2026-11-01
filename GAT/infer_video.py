@@ -1,20 +1,22 @@
 import argparse
 import json
+import sys
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.append(str(PROJECT_ROOT))
 
 import albumentations as A
 import cv2
 import torch
 from albumentations.pytorch import ToTensorV2
 
+from device_selection import DEVICE_CHOICES, resolve_device
 from models.attention_models.RCRG_R2_C11_conc_temporal import (
     GroupActivityClassifer,
     PersonActivityClassifier,
 )
 from utils.helper_utils.helper import Config
-
-
-PROJECT_ROOT = Path(__file__).resolve().parent
 
 
 def resolve_input_path(path):
@@ -38,6 +40,8 @@ def parse_args():
         ),
     )
     parser.add_argument("--frame-batch-size", type=int, default=4)
+    parser.add_argument("--device", choices=DEVICE_CHOICES, default="auto",
+                        help="Inference device: auto (Intel XPU, CUDA, then CPU), cpu, cuda, or xpu.")
     parser.add_argument(
         "--window-size",
         type=int,
@@ -170,7 +174,7 @@ def main():
     if sorted(detections) != expected_ids:
         raise ValueError("Detection JSON frame keys must be contiguous and start at 0.")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = resolve_device(args.device)
     print(f"Running on {device}.")
     checkpoint = load_checkpoint(args.checkpoint, device)
     config = checkpoint["config"]

@@ -102,6 +102,15 @@
                 </div>
               </div>
               <div class="field">
+                <label for="device">Compute device</label>
+                <select id="device">
+                  <option value="auto" selected>Automatic (prefer Intel Arc, then NVIDIA)</option>
+                  <option value="cpu">CPU</option>
+                  <option value="cuda">NVIDIA CUDA</option>
+                  <option value="xpu">Intel Arc GPU (XPU)</option>
+                </select>
+              </div>
+              <div class="field">
                 <label>Commentary</label>
                 <div class="seg small" id="nlp-seg">
                   <button type="button" data-nlp="local" class="on">Offline LLM</button>

@@ -1,8 +1,17 @@
+import argparse
+
 import cv2
-import torch
 from ultralytics import YOLO
 import numpy as np
 import json
+
+from device_selection import DEVICE_CHOICES, resolve_device, ultralytics_device
+
+parser = argparse.ArgumentParser(description="Run the original GRITSENSE tracking preview.")
+parser.add_argument("--device", choices=DEVICE_CHOICES, default="auto")
+selected_device = resolve_device(parser.parse_args().device)
+device = ultralytics_device(selected_device)
+print(f"Selected device: {selected_device}")
 
 player_model = YOLO("player_detection.pt")
 
@@ -16,7 +25,6 @@ fourcc = cv2.VideoWriter_fourcc(*"mp4v")
 fps = cap.get(cv2.CAP_PROP_FPS)
 fps = fps if fps and fps > 1 else 30
 
-device = 0 if torch.cuda.is_available() else "cpu"
 
 out = None
 

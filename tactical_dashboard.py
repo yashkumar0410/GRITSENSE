@@ -25,6 +25,7 @@ import argparse
 import csv
 import json
 import math
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -49,6 +50,8 @@ from analytics.epv import TOP_SPEED
 from analytics.motion import MotionSmoother
 from analytics.pose_signals import JumpDetector
 from analytics.nlp import DEFAULT_LOCAL_MODEL, build_backend
+from pipeline_profiling import is_enabled as profiling_enabled, measure, record, report as report_profile
+from device_selection import DEVICE_CHOICES, resolve_device
 
 
 ROOT = Path(__file__).resolve().parent
@@ -531,7 +534,7 @@ def split_activity(label: str) -> tuple[int, str]:
     return (0 if label[0] == "l" else 1), label[2:]
 
 
-def load_group_activity(video_path: Path, players_path: Path, frame_count: int):
+def load_group_activity(video_path: Path, players_path: Path, frame_count: int, device="auto"):
     """Window predictions for this video: reuse master_main's output, else run the model."""
     try:
         data = json.loads(GROUP_ACTIVITY_FILE.read_text(encoding="utf-8"))
@@ -543,8 +546,10 @@ def load_group_activity(video_path: Path, players_path: Path, frame_count: int):
         try:
             import group_activity
             print("Running the pretrained group-activity GAT for this video")
-            data = group_activity.run(video_path, players_path, GROUP_ACTIVITY_FILE)
+            data = group_activity.run(video_path, players_path, GROUP_ACTIVITY_FILE, device=device)
         except Exception as exc:
+            if resolve_device(device).type != "cpu":
+                raise RuntimeError(f"Group-activity GAT failed on selected device {device}.") from exc
             print(f"Pretrained group-activity GAT unavailable ({type(exc).__name__}: {exc})")
             return None
     lookup = [None] * data["frames"]
@@ -820,7 +825,8 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
                      show: bool = False, snapshot_every: int = 80, nlp: str = "local",
                      local_model: str = DEFAULT_LOCAL_MODEL,
                      learned: bool = True, learned_weight: float = 0.3,
-                     group_activity: bool = True) -> Path:
+                     group_activity: bool = True, device="auto") -> Path:
+    device = resolve_device(device)
     with players_path.open("r", encoding="utf-8") as f:
         player_data = json.load(f)
     with annotations_path.open("r", encoding="utf-8") as f:
@@ -843,7 +849,7 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
     if learned:
         from analytics.learned import LearnedModels
         try:
-            learned_models = LearnedModels()
+            learned_models = LearnedModels(device=device)
             print(f"Combining physics with trained GAT / HRN (learned weight {learned_weight:.0%}; "
                   f"HRN target influence scaled by test skill: zone {learned_models.zone_skill:.2f}, "
                   f"shot {learned_models.shot_skill:.2f})")
@@ -852,7 +858,8 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
     else:
         print("Physics only")
     engine = InsightEngine(learned=learned_models, learned_weight=learned_weight)
-    backend = build_backend(nlp, local_model=local_model)
+    with measure("dashboard.llm_backend_load"):
+        backend = build_backend(nlp, local_model=local_model, device=device)
     commentary = CommentaryGenerator(team_names, fps, backend=backend)
     print(f"Commentary engine: {commentary.source}")
     ball_state = BallState()
@@ -862,7 +869,8 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
                              if ball_path.name == "ball_clean.csv" else ({}, []))
     print(f"Ball touches detected: {len(touch_events)}")
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or len(player_data))
-    ga = load_group_activity(video_path, players_path, frame_count) if group_activity else None
+    with measure("dashboard.group_activity_load"):
+        ga = load_group_activity(video_path, players_path, frame_count, device=device) if group_activity else None
     base = build_base(team_names)
     epv_history: list[float] = []
     insights_log = []
@@ -870,6 +878,8 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
     crop = None
 
     print(f"Rendering dashboard: {total} frames -> {out_video}")
+    render_started = time.perf_counter() if profiling_enabled() else 0.0
+    rendered_frames = 0
     try:
         for frame_idx in range(total):
             ok, frame = cap.read()
@@ -884,6 +894,7 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
             toucher = touches.get(frame_idx)
             ins = engine.step(frame_idx, players, ball, toucher)
             commentary.update(ins)
+            composition_started = time.perf_counter() if profiling_enabled() else 0.0
 
             epv_history.append(ins.epv)
             epv_history = epv_history[-int(fps * 4):]
@@ -902,7 +913,11 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
             canvas = draw_text_layer(canvas, view, commentary, epv_history, target_img,
                                      frame_idx, fps, team_names, crop, players, ga)
 
-            writer.write(canvas)
+            if profiling_enabled():
+                record("dashboard.frame_composition", time.perf_counter() - composition_started)
+            with measure("dashboard.video_write"):
+                writer.write(canvas)
+            rendered_frames += 1
             row = ins.to_dict()
             window = group_activity_at(ga, frame_idx)
             row["group_activity"] = ({"label": window["label"], "score": window["score"]}
@@ -921,6 +936,10 @@ def render_dashboard(video_path: Path, players_path: Path, ball_path: Path, anno
         writer.release()
         if show:
             cv2.destroyAllWindows()
+        if profiling_enabled():
+            elapsed = time.perf_counter() - render_started
+            record("dashboard.frame_loop", elapsed)
+            record("dashboard.frame_average", elapsed, count=rendered_frames)
 
     with (out_dir / "dashboard_insights.json").open("w", encoding="utf-8") as f:
         json.dump(insights_log, f, indent=1)
@@ -958,6 +977,8 @@ def parse_args():
                         help="Share of the trained GAT / HRN in every combined output (0-1).")
     parser.add_argument("--no-group-activity", action="store_true",
                         help="Hide the pretrained group-activity GAT (GAT/) card and rally timeline.")
+    parser.add_argument("--device", choices=DEVICE_CHOICES, default="auto",
+                        help="Inference device: auto (Intel XPU, CUDA, then CPU), cpu, cuda, or xpu.")
     return parser.parse_args()
 
 
@@ -968,21 +989,25 @@ def _resolve(path: str) -> Path:
 
 def main():
     args = parse_args()
-    render_dashboard(
-        video_path=_resolve(args.video),
-        players_path=_resolve(args.players),
-        ball_path=_resolve(args.ball),
-        annotations_path=_resolve(args.annotations),
-        out_dir=_resolve(args.out),
-        team_names={0: args.teams[0], 1: args.teams[1]},
-        max_frames=args.max_frames,
-        show=args.show,
-        nlp=args.nlp,
-        local_model=args.local_model,
-        learned=not args.physics_only,
-        learned_weight=args.learned_weight,
-        group_activity=not args.no_group_activity,
-    )
+    try:
+        render_dashboard(
+            video_path=_resolve(args.video),
+            players_path=_resolve(args.players),
+            ball_path=_resolve(args.ball),
+            annotations_path=_resolve(args.annotations),
+            out_dir=_resolve(args.out),
+            team_names={0: args.teams[0], 1: args.teams[1]},
+            max_frames=args.max_frames,
+            show=args.show,
+            nlp=args.nlp,
+            local_model=args.local_model,
+            learned=not args.physics_only,
+            learned_weight=args.learned_weight,
+            group_activity=not args.no_group_activity,
+            device=args.device,
+        )
+    finally:
+        report_profile("tactical dashboard")
 
 
 if __name__ == "__main__":

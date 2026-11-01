@@ -40,6 +40,9 @@ import sys
 import numpy as np
 import torch
 
+from pipeline_profiling import measure
+from device_selection import resolve_device
+
 
 # ============================================================
 # PATHS
@@ -592,6 +595,7 @@ def build_graphs(
     VolleyballGraphBuilder,
     GAT,
     HRN,
+    device,
 ):
 
     print()
@@ -675,6 +679,8 @@ def build_graphs(
         "HRN"
     )
 
+    gat = gat.to(device)
+    hrn = hrn.to(device)
     gat.eval()
     hrn.eval()
 
@@ -729,14 +735,15 @@ def build_graphs(
             # Build graph
             # ------------------------------------------------
 
-            graph = (
-                builder.build_graph(
-                    players,
-                    ball,
-                    court,
-                    frame_id=frame_id,
+            with measure("graphs.construction"):
+                graph = (
+                    builder.build_graph(
+                        players,
+                        ball,
+                        court,
+                        frame_id=frame_id,
+                    )
                 )
-            )
 
             # ------------------------------------------------
             # Validate 49-D
@@ -749,6 +756,8 @@ def build_graphs(
                     f"expected 49-D features, "
                     f"got {graph.x.shape[1]}"
                 )
+
+            inference_graph = graph.clone().to(device)
 
             # ------------------------------------------------
             # Pose diagnostics
@@ -806,12 +815,11 @@ def build_graphs(
             # GAT
             # ------------------------------------------------
 
-            with torch.no_grad():
-
+            with torch.no_grad(), measure("graphs.gat_inference", device=device):
                 gat_output = gat(
-                    graph.x,
-                    graph.edge_index,
-                    graph.edge_attr,
+                    inference_graph.x,
+                    inference_graph.edge_index,
+                    inference_graph.edge_attr,
                 )
 
             if isinstance(
@@ -833,14 +841,13 @@ def build_graphs(
             # HRN
             # ------------------------------------------------
 
-            with torch.no_grad():
-
+            with torch.no_grad(), measure("graphs.hrn_inference", device=device):
                 hrn_output = hrn(
-                    graph.x,
-                    graph.edge_index,
-                    graph.edge_attr,
-                    graph.node_type,
-                    graph.node_team,
+                    inference_graph.x,
+                    inference_graph.edge_index,
+                    inference_graph.edge_attr,
+                    inference_graph.node_type,
+                    inference_graph.node_team,
                 )
 
             if not isinstance(
@@ -1049,6 +1056,11 @@ def build_graphs(
             print(
                 f"    {type(exc).__name__}: {exc}"
             )
+            if device.type != "cpu":
+                raise RuntimeError(
+                    f"Graph/GAT/HRN processing failed on selected device {device} "
+                    f"for frame {frame_id}."
+                ) from exc
 
     # ========================================================
     # GRAPH SUMMARY
@@ -1316,7 +1328,7 @@ def build_temporal_sequences(
     return sequences, sequence_frame_ids
 
 
-def run_temporal_predictions(sequences, sequence_frame_ids, model_name, checkpoint_path):
+def run_temporal_predictions(sequences, sequence_frame_ids, model_name, checkpoint_path, device):
     """Run a trained GRU/Transformer over generated HRN windows and save predictions."""
     if checkpoint_path is None:
         print("\nTEMPORAL CLASSIFICATION SKIPPED: no trained temporal checkpoint supplied.")
@@ -1369,10 +1381,12 @@ def run_temporal_predictions(sequences, sequence_frame_ids, model_name, checkpoi
             model.class_names = names
 
     model.load_state_dict(state_dict, strict=True)
+    model.to(device)
     model.eval()
-    inputs = torch.as_tensor(sequences, dtype=torch.float32)
+    inputs = torch.as_tensor(sequences, dtype=torch.float32, device=device)
     with torch.inference_mode():
-        result = model.predict(inputs)
+        with measure("graphs.temporal_classifier_inference", device=device):
+            result = model.predict(inputs)
 
     probabilities = result["probabilities"].detach().cpu().numpy()
     indices = result["class_indices"].detach().cpu().numpy().astype(int)
@@ -1402,7 +1416,9 @@ def run_temporal_predictions(sequences, sequence_frame_ids, model_name, checkpoi
 # MAIN
 # ============================================================
 
-def main(temporal_model="gru", temporal_checkpoint=None):
+def main(temporal_model="gru", temporal_checkpoint=None, device="auto"):
+    device = resolve_device(device)
+    print(f"Graph GAT/HRN device: {device}")
 
     print()
     print("=" * 75)
@@ -1461,6 +1477,8 @@ def main(temporal_model="gru", temporal_checkpoint=None):
         GAT,
 
         HRN,
+
+        device,
     )
 
     # --------------------------------------------------------
@@ -1478,6 +1496,7 @@ def main(temporal_model="gru", temporal_checkpoint=None):
         sequence_frame_ids,
         model_name=temporal_model,
         checkpoint_path=temporal_checkpoint,
+        device=device,
     )
 
     # ========================================================

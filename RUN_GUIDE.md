@@ -10,7 +10,8 @@ dashboard with **LLM-written commentary** from an offline local model (no API ne
 - Windows 10/11, macOS or Linux
 - Python 3.10 or newer (tested on 3.13)
 - About 5 GB of free disk space (models plus the optional local LLM)
-- A GPU is optional. Detection and the local LLM both run on CPU, just slower.
+- A GPU is optional. YOLO detection prefers Intel XPU, then NVIDIA CUDA, and falls
+  back to CPU. The local LLM uses NVIDIA CUDA when available, otherwise CPU.
 
 ## 2. Project files that must be present
 
@@ -47,7 +48,8 @@ the dashboard (pillow) and the offline commentary LLM (transformers).
 ## 4. Commentary LLM (offline)
 
 Commentary is written by a local model, `Qwen/Qwen2.5-3B-Instruct`, running on your
-machine (on the GPU if there is one, otherwise CPU). No API key or internet is needed once the model is cached: the first run
+machine (on NVIDIA CUDA when available, otherwise CPU). Intel XPU is not selected by
+the current Transformers pipeline configuration. No API key or internet is needed once the model is cached: the first run
 downloads it (~6 GB) into your Hugging Face cache, and every run after that loads it
 from the cache without touching the network.
 
@@ -74,6 +76,11 @@ python webapp/server.py
 
 Open <http://127.0.0.1:5000>. From there you can:
 
+- **Compute device:** choose Automatic (prefers Intel Arc XPU, then NVIDIA CUDA),
+  CPU, NVIDIA CUDA, or Intel Arc XPU before starting a run. Selecting an unavailable
+  device or one unsupported by a model stage reports an error instead of silently
+  switching that stage to CPU.
+
 - **Upload video:** drop a match video, click the four court corners on a frame
   (or upload an `annotations.json`), set team names and press **Run analysis**.
   This runs the full pipeline (detection → ball cleaning → graphs → dashboard).
@@ -83,6 +90,28 @@ You can follow progress live. The results page shows the dashboard video with sy
 commentary, a point-chance timeline (click it to seek), recommended plays, key
 defenders, target zones and snapshots, plus downloads. Runs are saved in
 `webapp/jobs/`. Videos that aren't 1080p are scaled to 1080p automatically.
+
+### Optional performance profiling
+
+The pipeline can report synchronized player, pose, ball and graph-model timings,
+per-frame throughput, dashboard rendering/encoding, commentary generation, and
+subprocess/transcode wall time. Profiling is off by default. From PowerShell, enable
+it for the web app and its child processes with:
+
+```powershell
+$env:GRITSENSE_PROFILE = "1"
+python webapp\server.py
+```
+
+Run a video job as usual; profiling summaries appear in the job log. To profile a
+direct full-pipeline run instead:
+
+```powershell
+python master_main.py --video sample3.mp4 --profile --dashboard
+```
+
+Profiling synchronizes the selected CUDA/XPU device around measured model calls,
+so it adds overhead. Use it for diagnosis, not as the production runtime.
 
 A full run writes its detections into the project root, the same way
 `master_main.py` does. The app backs up the sample's detection files to
@@ -150,10 +179,18 @@ Every constant and its source (measured / published / derived / estimated) is li
 ### C3. Pretrained group-activity GAT
 
 ```powershell
-python group_activity.py --video sample3.mp4
+python group_activity.py --video sample3.mp4 --device auto
+# or explicitly choose one:
+python group_activity.py --video sample3.mp4 --device xpu
 ```
 
-Runs the pretrained GAT in `GAT/` (RCRG-R2-C11-conc-temporal-V1, Volleyball dataset)
+`--device` accepts `auto`, `cpu`, `cuda` (NVIDIA), or `xpu` (Intel Arc). The same
+choice is available in `master_main.py`, `tactical_dashboard.py`, `redetect_ball.py`,
+and `GAT/infer_video.py`. Unavailable explicitly selected devices raise an error.
+
+Runs the pretrained GAT using
+`pretrained_checkpoints/RCRG-R2-C11-conc-temporal-V1/checkpoint_epoch_42.pkl`
+(RCRG-R2-C11-conc-temporal-V1, Volleyball dataset)
 next to the project's own GAT/HRN. Every 9-frame window is classified as one of
 `l/r set`, `l/r spike`, `l/r pass` or `l/r winpoint`. The results go to
 `output_recent/group_activity/group_activity.json`. `master_main.py` runs this

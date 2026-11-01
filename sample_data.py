@@ -295,6 +295,7 @@ def _load_real_sample_data(frame_id):
         # ----------------------------------------------------
 
         previous_ball = None
+        next_ball = None
 
         for row in reader:
 
@@ -376,6 +377,18 @@ def _load_real_sample_data(frame_id):
                     }
                 continue
 
+            if current_frame > frame_id:
+                if (
+                    next_ball is None
+                    or current_frame < next_ball["frame"]
+                ):
+                    next_ball = {
+                        "frame": current_frame,
+                        "x": x,
+                        "y": y,
+                    }
+                continue
+
             if current_frame != frame_id:
                 continue
 
@@ -421,6 +434,44 @@ def _load_real_sample_data(frame_id):
             }
 
             break
+
+        if ball is None:
+            max_interpolation_gap = 5
+            if (
+                previous_ball is not None
+                and next_ball is not None
+                and next_ball["frame"] > previous_ball["frame"]
+                and next_ball["frame"] - previous_ball["frame"] - 1
+                <= max_interpolation_gap
+            ):
+                span = next_ball["frame"] - previous_ball["frame"]
+                fraction = (frame_id - previous_ball["frame"]) / span
+                ball = {
+                    "x": previous_ball["x"] + fraction * (next_ball["x"] - previous_ball["x"]),
+                    "y": previous_ball["y"] + fraction * (next_ball["y"] - previous_ball["y"]),
+                    "frame": frame_id,
+                    "vx": (next_ball["x"] - previous_ball["x"]) / span,
+                    "vy": (next_ball["y"] - previous_ball["y"]) / span,
+                    "confidence": 0.0,
+                }
+            else:
+                nearest_ball = min(
+                    (candidate for candidate in (previous_ball, next_ball) if candidate is not None),
+                    key=lambda candidate: abs(candidate["frame"] - frame_id),
+                    default=None,
+                )
+                if (
+                    nearest_ball is not None
+                    and abs(nearest_ball["frame"] - frame_id) <= max_interpolation_gap
+                ):
+                    ball = {
+                        "x": nearest_ball["x"],
+                        "y": nearest_ball["y"],
+                        "frame": frame_id,
+                        "vx": 0.0,
+                        "vy": 0.0,
+                        "confidence": 0.0,
+                    }
 
     # ========================================================
     # PLAYER DATA

@@ -30,10 +30,13 @@ import torch
 import torch.nn as nn
 import torchvision.models as tv_models
 
+from pipeline_profiling import measure
+from device_selection import DEVICE_CHOICES, resolve_device
+
 ROOT = Path(__file__).resolve().parent
 GAT_DIR = ROOT / "GAT"
 DEFAULT_CHECKPOINT = (
-    GAT_DIR / "pretrained_checkpoints" / "RCRG-R2-C11-conc-temporal-V1" / "checkpoint_epoch_42.pkl"
+    ROOT / "pretrained_checkpoints" / "RCRG-R2-C11-conc-temporal-V1" / "checkpoint_epoch_42.pkl"
 )
 DEFAULT_OUT = ROOT / "output_recent" / "group_activity" / "group_activity.json"
 
@@ -110,12 +113,13 @@ class GroupActivityClassifer(nn.Module):
 
 
 def load_model(checkpoint_path: Path = DEFAULT_CHECKPOINT, device=None):
-    device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    checkpoint = _load_checkpoint(checkpoint_path, device)
-    class_names = list(checkpoint["config"].model["num_clases_label"]["group_activity"])
-    model = GroupActivityClassifer(len(class_names), _load_relational_unit())
-    model.load_state_dict(checkpoint["model_state_dict"], strict=True)
-    model.to(device).eval()
+    device = resolve_device(device or "auto")
+    with measure("group_activity.model_load"):
+        checkpoint = _load_checkpoint(checkpoint_path, device)
+        class_names = list(checkpoint["config"].model["num_clases_label"]["group_activity"])
+        model = GroupActivityClassifer(len(class_names), _load_relational_unit())
+        model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+        model.to(device).eval()
     return model, class_names, device
 
 
@@ -156,9 +160,9 @@ def _frame_crops(frame, players):
 
 def run(video_path: Path, players_path: Path, out_path: Path = DEFAULT_OUT,
         checkpoint_path: Path = DEFAULT_CHECKPOINT, window_size: int = 9, stride: int = 9,
-        frame_batch_size: int = 4):
+        frame_batch_size: int = 4, device: str = "auto"):
     """Classify every window of the video and write per-window + overall predictions."""
-    model, class_names, device = load_model(checkpoint_path)
+    model, class_names, device = load_model(checkpoint_path, device)
     print(f"Pretrained group-activity GAT loaded on {device} ({len(class_names)} classes).")
 
     raw = json.loads(Path(players_path).read_text(encoding="utf-8"))
@@ -174,7 +178,8 @@ def run(video_path: Path, players_path: Path, out_path: Path = DEFAULT_OUT,
 
     def flush():
         crops = torch.stack(frame_batch).flatten(0, 1).to(device)
-        features = model.resnet50(crops).flatten(1)
+        with measure("group_activity.feature_inference", device=device):
+            features = model.resnet50(crops).flatten(1)
         feature_batches.append(features.reshape(len(frame_batch), MAX_PLAYERS, -1).cpu())
         frame_batch.clear()
 
@@ -212,7 +217,8 @@ def run(video_path: Path, players_path: Path, out_path: Path = DEFAULT_OUT,
     with torch.inference_mode():
         for start in starts:
             end = start + window_size
-            probs = torch.softmax(model.predict_window(visual_features[start:end], edge_index), dim=1)[0].cpu()
+            with measure("group_activity.window_inference", device=device):
+                probs = torch.softmax(model.predict_window(visual_features[start:end], edge_index), dim=1)[0].cpu()
             probs_all.append(probs)
             best = int(probs.argmax())
             windows.append({
@@ -258,6 +264,8 @@ def parse_args():
     parser.add_argument("--out", default=str(DEFAULT_OUT))
     parser.add_argument("--window-size", type=int, default=9)
     parser.add_argument("--stride", type=int, default=9)
+    parser.add_argument("--device", choices=DEVICE_CHOICES, default="auto",
+                        help="Inference device: auto (Intel XPU, CUDA, then CPU), cpu, cuda, or xpu.")
     return parser.parse_args()
 
 
@@ -265,7 +273,7 @@ def main():
     args = parse_args()
     resolve = lambda p: Path(p) if Path(p).is_absolute() else ROOT / p
     run(resolve(args.video), resolve(args.players), resolve(args.out),
-        resolve(args.checkpoint), args.window_size, args.stride)
+        resolve(args.checkpoint), args.window_size, args.stride, device=args.device)
 
 
 if __name__ == "__main__":

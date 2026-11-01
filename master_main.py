@@ -25,11 +25,22 @@ import csv
 import json
 import shutil
 import sys
+import time
 from pathlib import Path
 
 import cv2
 import numpy as np
 import torch
+
+from pipeline_profiling import (
+    enable as enable_profiling,
+    is_enabled as profiling_enabled,
+    measure,
+    record,
+    report_model_device,
+    report as report_profile,
+)
+from device_selection import DEVICE_CHOICES, resolve_device, ultralytics_device
 
 
 ROOT = Path(__file__).resolve().parent
@@ -111,7 +122,7 @@ def _clear_generated_outputs():
         folder.mkdir(parents=True, exist_ok=True)
 
 
-def run_video_detections(video_path: Path) -> None:
+def run_video_detections(video_path: Path, selected_device=None) -> torch.device:
     """
     Generate fresh project-compatible player/pose JSON and ball CSV from video.
     Original project scripts and model files are not modified.
@@ -136,7 +147,16 @@ def run_video_detections(video_path: Path) -> None:
     with annotations_path.open("r", encoding="utf-8") as f:
         court_points_by_frame = json.load(f)
 
-    device = 0 if torch.cuda.is_available() else "cpu"
+    resolved_device = resolve_device(selected_device or "auto")
+    device = ultralytics_device(resolved_device)
+    if resolved_device.type == "xpu":
+        print(f"Using Intel GPU: {torch.xpu.get_device_name(0)}")
+    elif resolved_device.type == "cuda":
+        print(f"Using NVIDIA GPU: {torch.cuda.get_device_name(resolved_device)}")
+    else:
+        print("Using CPU")
+
+
     print("\n" + "=" * 76)
     print("STAGE 1 — FRESH VIDEO DETECTIONS")
     print("=" * 76)
@@ -146,9 +166,12 @@ def run_video_detections(video_path: Path) -> None:
     print(f"Pose model: {pose_weights.name}")
     print(f"Ball model: {ball_weights.name}")
 
-    player_model = YOLO(str(player_weights))
-    pose_model = YOLO(str(pose_weights))
-    ball_model = YOLO(str(ball_weights))
+    with measure("detection.player_model_load"):
+        player_model = YOLO(str(player_weights))
+    with measure("detection.pose_model_load"):
+        pose_model = YOLO(str(pose_weights))
+    with measure("detection.ball_model_load"):
+        ball_model = YOLO(str(ball_weights))
 
     # Reuse the project's existing ball tracker implementation.
     try:
@@ -160,6 +183,7 @@ def run_video_detections(video_path: Path) -> None:
         ) from exc
 
     ball_tracker = BallTracker(ball_model, device=device)
+    verified_models = set()
 
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
@@ -203,10 +227,15 @@ def run_video_detections(video_path: Path) -> None:
 
     try:
         while True:
+            frame_started = time.perf_counter() if profiling_enabled() else 0.0
+            read_started = frame_started
             ret, frame = cap.read()
+            if profiling_enabled():
+                record("detection.video_read", time.perf_counter() - read_started)
             if not ret:
                 break
 
+            preprocess_started = time.perf_counter() if profiling_enabled() else 0.0
             ball_detection_frame = frame.copy()
 
             # Compute this frame's image-to-court homography BEFORE mapping players.
@@ -219,17 +248,29 @@ def run_video_detections(video_path: Path) -> None:
                     H, _ = cv2.findHomography(image_corners, court_pts)
 
             mini_court = court_image.copy()
+            if profiling_enabled():
+                record("detection.frame_preprocess", time.perf_counter() - preprocess_started)
 
             # Same player tracking model family and tracker settings as main.py.
-            track_results = player_model.track(
-                frame,
-                persist=True,
-                conf=0.4,
-                tracker="botsort.yaml",
-                verbose=False,
-                device=device,
-                quantize=16 if device != "cpu" else 32,
+            player_timing = (
+                "detection.player_track_warmup"
+                if frame_idx == 0
+                else "detection.player_track_call"
             )
+            with measure(player_timing, device=device):
+                track_results = player_model.track(
+                    frame,
+                    persist=True,
+                    conf=0.4,
+                    tracker="botsort.yaml",
+                    verbose=False,
+                    device=device,
+                    quantize=16 if device != "cpu" else 32,
+                )
+            if "player" not in verified_models:
+                report_model_device("Player detector", player_model, device)
+                verified_models.add("player")
+            player_postprocess_started = time.perf_counter() if profiling_enabled() else 0.0
             track_boxes = []
             track_ids = []
             track_confidences = []
@@ -250,11 +291,26 @@ def run_video_detections(video_path: Path) -> None:
                     track_boxes.append(box.astype(float).tolist())
                     track_ids.append(int(track_id))
                     track_confidences.append(float(confidence))
+            if profiling_enabled():
+                record(
+                    "detection.player_tracking_postprocess",
+                    time.perf_counter() - player_postprocess_started,
+                )
 
             # Pose inference is run on the same frame, then associated to player tracks by IoU.
-            pose_result = pose_model.predict(
-                frame, conf=0.10, device=device, verbose=False
-            )[0]
+            pose_timing = (
+                "detection.pose_predict_warmup"
+                if frame_idx == 0
+                else "detection.pose_predict_call"
+            )
+            with measure(pose_timing, device=device):
+                pose_result = pose_model.predict(
+                    frame, conf=0.10, device=device, verbose=False
+                )[0]
+            if "pose" not in verified_models:
+                report_model_device("Pose detector", pose_model, device)
+                verified_models.add("pose")
+            pose_postprocess_started = time.perf_counter() if profiling_enabled() else 0.0
             pose_boxes = []
             pose_keypoints = []
             pose_confidences = []
@@ -386,8 +442,17 @@ def run_video_detections(video_path: Path) -> None:
                         cv2.circle(frame, (int(px), int(py)), 2, (255, 180, 0), -1)
 
             player_data[str(frame_idx)] = frame_record
+            if profiling_enabled():
+                record(
+                    "detection.pose_and_player_postprocess",
+                    time.perf_counter() - pose_postprocess_started,
+                )
 
+            ball_tracking_started = time.perf_counter() if profiling_enabled() else 0.0
             ball_data = ball_tracker.update(ball_detection_frame, frame_idx)
+            if profiling_enabled():
+                record("detection.ball_tracking_total", time.perf_counter() - ball_tracking_started)
+            render_started = time.perf_counter() if profiling_enabled() else 0.0
             if ball_data is None:
                 ball_rows.append([frame_idx, 0, -1, -1, 0, 0.0, 0.0, 0.0])
             else:
@@ -440,6 +505,9 @@ def run_video_detections(video_path: Path) -> None:
                 )
 
             writer.write(frame)
+            if profiling_enabled():
+                record("detection.render_and_write", time.perf_counter() - render_started)
+                record("detection.frame_total", time.perf_counter() - frame_started)
             frame_idx += 1
             if frame_idx % 100 == 0 or (total_frames and frame_idx == total_frames):
                 print(f"  processed {frame_idx}/{total_frames or '?'} frames")
@@ -470,35 +538,46 @@ def run_video_detections(video_path: Path) -> None:
     print(f"\nFresh player/pose data: {player_output.name} ({frame_idx} frames)")
     print(f"Fresh ball detections: {ball_output.name} ({len(ball_rows)} rows)")
     print(f"Detection preview: {preview_path.name}")
+    return resolved_device
 
 
-def run_existing_downstream(temporal_model="gru", temporal_checkpoint=None):
+def run_existing_downstream(temporal_model="gru", temporal_checkpoint=None, device="auto"):
     """Run graph/HRN/sequence generation and optional trained temporal inference."""
     print("\n" + "=" * 76)
     print("STAGE 2 — EXISTING GRAPH → GAT → HRN → TEMPORAL PIPELINE")
     print("=" * 76)
     import integrate_and_rebuild
-    integrate_and_rebuild.main(
-        temporal_model=temporal_model,
-        temporal_checkpoint=temporal_checkpoint,
-    )
+    with measure("pipeline.graph_gat_hrn_temporal"):
+        integrate_and_rebuild.main(
+            temporal_model=temporal_model,
+            temporal_checkpoint=temporal_checkpoint,
+            device=device,
+        )
 
     print("\n" + "=" * 76)
     print("STAGE 3 — EXISTING GRAPH VISUALIZATIONS")
     print("=" * 76)
     import visualize_recent_graphs
-    visualize_recent_graphs.main()
+    with measure("pipeline.graph_visualizations"):
+        visualize_recent_graphs.main()
 
 
-def run_pretrained_group_activity(video_path: Path) -> None:
+def run_pretrained_group_activity(video_path: Path, device="auto") -> None:
     """Run the pretrained group-activity GAT from GAT/ next to the project's own GAT/HRN."""
     print("\n" + "=" * 76)
     print("STAGE 3b — PRETRAINED GROUP-ACTIVITY GAT (GAT/ RCRG-R2-C11-conc-temporal)")
     print("=" * 76)
     try:
         import group_activity
-        group_activity.run(video_path, ROOT / "player_keypoints_mf3_pose.json")
+        with measure("pipeline.pretrained_group_activity"):
+            group_activity.run(
+                video_path,
+                ROOT / "player_keypoints_mf3_pose.json",
+                device=str(resolve_device(device)),
+            )
     except Exception as exc:  # optional stage: never block the rest of the pipeline
+        if resolve_device(device).type != "cpu":
+            raise RuntimeError(f"Group-activity GAT failed on selected device {device}.") from exc
         print(f"Pretrained group-activity GAT skipped: {type(exc).__name__}: {exc}")
 
 
@@ -531,54 +610,69 @@ def parse_args():
         help="Skip detection and downstream stages; render the dashboard from existing outputs.",
     )
     parser.add_argument(
+        "--profile", action="store_true",
+        help="Collect synchronized GPU inference and pipeline timing summaries.",
+    )
+    parser.add_argument(
+        "--device", choices=DEVICE_CHOICES, default="auto",
+        help="Inference device: auto (Intel XPU, CUDA, then CPU), cpu, cuda, or xpu.",
+    )
+    parser.add_argument(
         "--teams", nargs=2, default=["BRA", "JPN"], metavar=("LEFT", "RIGHT"),
         help="Dashboard team names for the left and right halves.",
     )
     return parser.parse_args()
 
 
-def run_dashboard(video_path: Path, team_names):
+def run_dashboard(video_path: Path, team_names, device="auto"):
     print("\n" + "=" * 76)
     print("STAGE 4 — TACTICAL DASHBOARD (MOCK GAT / HRN / EPV + NLP)")
     print("=" * 76)
     import tactical_dashboard
-    return tactical_dashboard.render_dashboard(
-        video_path=video_path,
-        players_path=ROOT / "player_keypoints_mf3_pose.json",
-        ball_path=ROOT / "ball.csv",
-        annotations_path=ROOT / "annotations.json",
-        out_dir=ROOT / "output_recent" / "dashboard",
-        team_names={0: team_names[0], 1: team_names[1]},
-    )
+    with measure("pipeline.dashboard_render"):
+        return tactical_dashboard.render_dashboard(
+            video_path=video_path,
+            players_path=ROOT / "player_keypoints_mf3_pose.json",
+            ball_path=ROOT / "ball.csv",
+            annotations_path=ROOT / "annotations.json",
+            out_dir=ROOT / "output_recent" / "dashboard",
+            team_names={0: team_names[0], 1: team_names[1]},
+            device=str(resolve_device(device)),
+        )
 
 
 def main():
     args = parse_args()
+    if args.profile:
+        enable_profiling()
     video_path = Path(args.video)
     if not video_path.is_absolute():
         video_path = (ROOT / video_path).resolve()
 
     if args.dashboard_only:
-        run_dashboard(video_path, args.teams)
+        run_dashboard(video_path, args.teams, args.device)
         return
 
     if not args.keep_existing_output:
         _clear_generated_outputs()
 
-    run_video_detections(video_path)
+    with measure("pipeline.video_detection"):
+        device = run_video_detections(video_path, args.device)
 
     print("\n" + "=" * 76)
     print("STAGE 1b — BALL RE-DETECTION AND CLEANING")
     print("=" * 76)
     import redetect_ball
-    redetect_ball.main(video_path)          # writes ball_candidates.json and ball_clean.csv
+    with measure("pipeline.ball_redetection_and_cleaning"):
+        redetect_ball.main(video_path, device=device)
     run_existing_downstream(
         temporal_model=args.temporal_model,
         temporal_checkpoint=args.temporal_checkpoint,
+        device=device,
     )
-    run_pretrained_group_activity(video_path)
+    run_pretrained_group_activity(video_path, device)
     if args.dashboard:
-        run_dashboard(video_path, args.teams)
+        run_dashboard(video_path, args.teams, device)
 
     print("\n" + "=" * 76)
     print("GRITSENSE MASTER PIPELINE COMPLETE")
@@ -594,6 +688,7 @@ def main():
 
 
 if __name__ == "__main__":
+    pipeline_started = time.perf_counter()
     try:
         main()
     except KeyboardInterrupt:
@@ -602,3 +697,6 @@ if __name__ == "__main__":
     except Exception as exc:
         print(f"\nMASTER PIPELINE FAILED: {type(exc).__name__}: {exc}")
         raise
+    finally:
+        record("pipeline.end_to_end", time.perf_counter() - pipeline_started)
+        report_profile("master pipeline")

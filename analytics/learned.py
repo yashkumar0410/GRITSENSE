@@ -25,6 +25,7 @@ import torch
 import torch.nn as nn
 
 from .epv import SHOTS
+from device_selection import resolve_device
 
 ROOT = Path(__file__).resolve().parent.parent
 CHECKPOINT_DIR = ROOT / "checkpoints"
@@ -96,10 +97,11 @@ def _skill(accuracy, baseline) -> float:
 class LearnedModels:
     """Loads gat.pt / hrn.pt and runs them on a frame's graph."""
 
-    def __init__(self, checkpoint_dir: Path = CHECKPOINT_DIR):
+    def __init__(self, checkpoint_dir: Path = CHECKPOINT_DIR, device="cpu"):
         from models.gat import GAT
         from models.hrn import HRN
 
+        self.device = resolve_device(device)
         gat_path, hrn_path = checkpoint_dir / "gat.pt", checkpoint_dir / "hrn.pt"
         if not (gat_path.exists() and hrn_path.exists()):
             raise FileNotFoundError(f"Trained checkpoints not found in {checkpoint_dir}")
@@ -114,7 +116,7 @@ class LearnedModels:
         self.heads = HRNHeads()
         self.heads.load_state_dict(hrn_ckpt["head_state_dict"])
         for module in (self.gat, self.hrn, self.heads):
-            module.eval()
+            module.to(self.device).eval()
         self.metrics = {"gat": gat_ckpt.get("metrics", {}), "hrn": hrn_ckpt.get("metrics", {})}
         hrn = self.metrics["hrn"]
         # Skill on the held-out test set: 0 = no better than always guessing the most
@@ -127,6 +129,7 @@ class LearnedModels:
         graph = build_graph(frame_id)
         if graph is None:
             return None
+        graph = graph.to(self.device)
         _, (att_index, att_weights) = self.gat(graph.x, graph.edge_index, graph.edge_attr, return_attention=True)
         attention = att_weights.mean(dim=1)       # average the attention heads
 

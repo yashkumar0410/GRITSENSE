@@ -1,6 +1,9 @@
+from collections import deque
+
 import cv2
 import numpy as np
-from collections import deque
+
+from pipeline_profiling import measure, report_model_device
 
 
 def find_ball_by_color(frame):
@@ -73,18 +76,30 @@ class BallTracker:
         self.history = deque(maxlen=history_length)
         self.previous_position = None
         self.previous_frame = None
+        self._device_reported = False
+        self._prediction_calls = 0
 
     def get_candidates(self, frame):
         try:
-            result = self.model.predict(
-                frame,
-                conf=self.confidence_threshold,
-                device=self.device,
-                verbose=False
-            )[0]
+            timing = (
+                "detection.ball_predict_warmup"
+                if self._prediction_calls == 0
+                else "detection.ball_predict_call"
+            )
+            with measure(timing, device=self.device):
+                result = self.model.predict(
+                    frame,
+                    conf=self.confidence_threshold,
+                    device=self.device,
+                    verbose=False
+                )[0]
+            self._prediction_calls += 1
         except Exception as exc:
-            print(f"Ball model error: {exc}")
-            return []
+            raise RuntimeError(f"Ball model inference failed on {self.device}: {exc}") from exc
+
+        if not self._device_reported:
+            report_model_device("Ball detector", self.model, self.device)
+            self._device_reported = True
 
         if result.boxes is None or len(result.boxes) == 0:
             return []

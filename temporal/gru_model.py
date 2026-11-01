@@ -8,6 +8,8 @@ import torch
 from torch import Tensor, nn
 from torch.utils.data import DataLoader, TensorDataset
 
+from device_selection import resolve_device
+
 
 ACTIVITY_CLASSES = (
     "left-pass",
@@ -239,7 +241,7 @@ class TemporalTrainer:
         if not isinstance(model, nn.Module):
             raise TypeError("model must be a torch.nn.Module.")
         self.model = model
-        self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        self.device = resolve_device(device or "auto")
         self.model.to(self.device)
         self.optimizer = optimizer or torch.optim.Adam(self.model.parameters(), lr=learning_rate)
         self.criterion = criterion or nn.CrossEntropyLoss()

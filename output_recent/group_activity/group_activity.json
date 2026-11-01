@@ -1,7 +1,7 @@
 {
   "model": "RCRG-R2-C11-conc-temporal-V1 (pretrained GAT, Volleyball dataset)",
-  "checkpoint": "GAT\\pretrained_checkpoints\\RCRG-R2-C11-conc-temporal-V1\\checkpoint_epoch_42.pkl",
-  "video": "C:\\Users\\yashk\\OneDrive\\Desktop\\this_is_final\\this_is_final\\sample3.mp4",
+  "checkpoint": "pretrained_checkpoints\\RCRG-R2-C11-conc-temporal-V1\\checkpoint_epoch_42.pkl",
+  "video": "C:\\Users\\vipra\\Downloads\\vip_2\\this_is_final\\GRITSENSE\\webapp\\jobs\\20261031-135847-2691\\video.mp4",
   "frames": 319,
   "window_size": 9,
   "stride": 9,
@@ -17,16 +17,16 @@
   ],
   "overall": {
     "label": "l-pass",
-    "score": 0.1963,
+    "score": 0.2085,
     "probabilities": {
-      "r_set": 0.0889,
-      "r_spike": 0.0737,
-      "r-pass": 0.1729,
-      "r_winpoint": 0.0872,
-      "l_winpoint": 0.1246,
-      "l-pass": 0.1963,
-      "l-spike": 0.1218,
-      "l_set": 0.1346
+      "r_set": 0.0876,
+      "r_spike": 0.0716,
+      "r-pass": 0.1778,
+      "r_winpoint": 0.0924,
+      "l_winpoint": 0.1166,
+      "l-pass": 0.2085,
+      "l-spike": 0.1113,
+      "l_set": 0.1343
     }
   },
   "windows": [
@@ -36,16 +36,16 @@
       "start_s": 0.0,
       "end_s": 0.3,
       "label": "r_winpoint",
-      "score": 0.466,
+      "score": 0.4428,
       "probabilities": {
-        "r_set": 0.0401,
-        "r_spike": 0.0968,
-        "r-pass": 0.1003,
-        "r_winpoint": 0.466,
-        "l_winpoint": 0.0555,
-        "l-pass": 0.1858,
-        "l-spike": 0.0385,
-        "l_set": 0.017
+        "r_set": 0.0484,
+        "r_spike": 0.1278,
+        "r-pass": 0.0566,
+        "r_winpoint": 0.4428,
+        "l_winpoint": 0.0529,
+        "l-pass": 0.2149,
+        "l-spike": 0.0395,
+        "l_set": 0.0171
       }
     },
     {
@@ -54,16 +54,16 @@
       "start_s": 0.3,
       "end_s": 0.6,
       "label": "r_winpoint",
-      "score": 0.285,
+      "score": 0.4464,
       "probabilities": {
-        "r_set": 0.03,
-        "r_spike": 0.1685,
-        "r-pass": 0.1743,
-        "r_winpoint": 0.285,
-        "l_winpoint": 0.0739,
-        "l-pass": 0.135,
-        "l-spike": 0.0487,
-        "l_set": 0.0845
+        "r_set": 0.0211,
+        "r_spike": 0.1503,
+        "r-pass": 0.1002,
+        "r_winpoint": 0.4464,
+        "l_winpoint": 0.0597,
+        "l-pass": 0.1308,
+        "l-spike": 0.0304,
+        "l_set": 0.0609
       }
     },
     {
@@ -72,16 +72,16 @@
       "start_s": 0.6,
       "end_s": 0.9,
       "label": "l-pass",
-      "score": 0.4247,
+      "score": 0.4158,
       "probabilities": {
-        "r_set": 0.0939,
-        "r_spike": 0.1571,
-        "r-pass": 0.0464,
-        "r_winpoint": 0.132,
-        "l_winpoint": 0.09,
-        "l-pass": 0.4247,
-        "l-spike": 0.0333,
-        "l_set": 0.0226
+        "r_set": 0.08,
+        "r_spike": 0.1551,
+        "r-pass": 0.0393,
+        "r_winpoint": 0.1785,
+        "l_winpoint": 0.0754,
+        "l-pass": 0.4158,
+        "l-spike": 0.0391,
+        "l_set": 0.0168
       }
     },
     {
@@ -90,16 +90,16 @@
       "start_s": 0.9,
       "end_s": 1.2,
       "label": "l-pass",
-      "score": 0.5887,
+      "score": 0.6634,
       "probabilities": {
-        "r_set": 0.069,
-        "r_spike": 0.0612,
-        "r-pass": 0.0484,
-        "r_winpoint": 0.1346,
-        "l_winpoint": 0.0511,
-        "l-pass": 0.5887,
-        "l-spike": 0.0267,
-        "l_set": 0.0203
+        "r_set": 0.0557,
+        "r_spike": 0.0486,
+        "r-pass": 0.0387,
+        "r_winpoint": 0.09,
+        "l_winpoint": 0.0605,
+        "l-pass": 0.6634,
+        "l-spike": 0.0251,
+        "l_set": 0.0182
       }
     },
     {
@@ -108,16 +108,16 @@
       "start_s": 1.2,
       "end_s": 1.5,
       "label": "l-pass",
-      "score": 0.636,
+      "score": 0.5884,
       "probabilities": {
-        "r_set": 0.0313,
-        "r_spike": 0.029,
-        "r-pass": 0.0685,
-        "r_winpoint": 0.1213,
-        "l_winpoint": 0.0678,
-        "l-pass": 0.636,
-        "l-spike": 0.0168,
-        "l_set": 0.0293
+        "r_set": 0.0344,
+        "r_spike": 0.045,
+        "r-pass": 0.0664,
+        "r_winpoint": 0.1279,
+        "l_winpoint": 0.0851,
+        "l-pass": 0.5884,
+        "l-spike": 0.018,
+        "l_set": 0.0349
       }
     },
     {
@@ -126,16 +126,16 @@
       "start_s": 1.5,
       "end_s": 1.8,
       "label": "l-pass",
-      "score": 0.6628,
+      "score": 0.7066,
       "probabilities": {
-        "r_set": 0.0199,
-        "r_spike": 0.043,
-        "r-pass": 0.0294,
-        "r_winpoint": 0.0799,
-        "l_winpoint": 0.0704,
-        "l-pass": 0.6628,
-        "l-spike": 0.0456,
-        "l_set": 0.049
+        "r_set": 0.0184,
+        "r_spike": 0.0384,
+        "r-pass": 0.0234,
+        "r_winpoint": 0.07,
+        "l_winpoint": 0.0674,
+        "l-pass": 0.7066,
+        "l-spike": 0.0394,
+        "l_set": 0.0363
       }
     },
     {
@@ -144,16 +144,16 @@
       "start_s": 1.8,
       "end_s": 2.1,
       "label": "l-pass",
-      "score": 0.4544,
+      "score": 0.3487,
       "probabilities": {
-        "r_set": 0.0379,
-        "r_spike": 0.0953,
-        "r-pass": 0.0322,
-        "r_winpoint": 0.0638,
-        "l_winpoint": 0.0902,
-        "l-pass": 0.4544,
-        "l-spike": 0.0577,
-        "l_set": 0.1684
+        "r_set": 0.0424,
+        "r_spike": 0.1121,
+        "r-pass": 0.0466,
+        "r_winpoint": 0.0759,
+        "l_winpoint": 0.0852,
+        "l-pass": 0.3487,
+        "l-spike": 0.0685,
+        "l_set": 0.2206
       }
     },
     {
@@ -162,16 +162,16 @@
       "start_s": 2.1,
       "end_s": 2.4,
       "label": "l_set",
-      "score": 0.5319,
+      "score": 0.4868,
       "probabilities": {
-        "r_set": 0.036,
-        "r_spike": 0.0588,
-        "r-pass": 0.0161,
-        "r_winpoint": 0.0673,
-        "l_winpoint": 0.0859,
-        "l-pass": 0.1732,
-        "l-spike": 0.0308,
-        "l_set": 0.5319
+        "r_set": 0.0426,
+        "r_spike": 0.0563,
+        "r-pass": 0.0179,
+        "r_winpoint": 0.074,
+        "l_winpoint": 0.0922,
+        "l-pass": 0.1971,
+        "l-spike": 0.0331,
+        "l_set": 0.4868
       }
     },
     {
@@ -180,16 +180,16 @@
       "start_s": 2.4,
       "end_s": 2.7,
       "label": "l_set",
-      "score": 0.8336,
+      "score": 0.8453,
       "probabilities": {
-        "r_set": 0.0136,
-        "r_spike": 0.0258,
-        "r-pass": 0.0101,
-        "r_winpoint": 0.0479,
-        "l_winpoint": 0.0371,
-        "l-pass": 0.0155,
-        "l-spike": 0.0164,
-        "l_set": 0.8336
+        "r_set": 0.0133,
+        "r_spike": 0.0209,
+        "r-pass": 0.0104,
+        "r_winpoint": 0.0496,
+        "l_winpoint": 0.0297,
+        "l-pass": 0.0163,
+        "l-spike": 0.0145,
+        "l_set": 0.8453
       }
     },
     {
@@ -198,16 +198,16 @@
       "start_s": 2.7,
       "end_s": 3.0,
       "label": "l_set",
-      "score": 0.5763,
+      "score": 0.6235,
       "probabilities": {
-        "r_set": 0.0178,
-        "r_spike": 0.042,
-        "r-pass": 0.0593,
-        "r_winpoint": 0.0805,
-        "l_winpoint": 0.0685,
-        "l-pass": 0.095,
-        "l-spike": 0.0605,
-        "l_set": 0.5763
+        "r_set": 0.0142,
+        "r_spike": 0.0432,
+        "r-pass": 0.061,
+        "r_winpoint": 0.0709,
+        "l_winpoint": 0.0597,
+        "l-pass": 0.0674,
+        "l-spike": 0.0601,
+        "l_set": 0.6235
       }
     },
     {
@@ -216,16 +216,16 @@
       "start_s": 3.0,
       "end_s": 3.3,
       "label": "l-spike",
-      "score": 0.7539,
+      "score": 0.733,
       "probabilities": {
-        "r_set": 0.0186,
-        "r_spike": 0.0336,
-        "r-pass": 0.0114,
-        "r_winpoint": 0.0359,
-        "l_winpoint": 0.0704,
+        "r_set": 0.0198,
+        "r_spike": 0.0351,
+        "r-pass": 0.0147,
+        "r_winpoint": 0.0337,
+        "l_winpoint": 0.0865,
         "l-pass": 0.048,
-        "l-spike": 0.7539,
-        "l_set": 0.0283
+        "l-spike": 0.733,
+        "l_set": 0.0292
       }
     },
     {
@@ -234,16 +234,16 @@
       "start_s": 3.3,
       "end_s": 3.6,
       "label": "l-spike",
-      "score": 0.8721,
+      "score": 0.8428,
       "probabilities": {
-        "r_set": 0.0085,
-        "r_spike": 0.0318,
-        "r-pass": 0.0183,
-        "r_winpoint": 0.029,
-        "l_winpoint": 0.0246,
-        "l-pass": 0.0094,
-        "l-spike": 0.8721,
-        "l_set": 0.0063
+        "r_set": 0.0098,
+        "r_spike": 0.0337,
+        "r-pass": 0.0306,
+        "r_winpoint": 0.0349,
+        "l_winpoint": 0.0283,
+        "l-pass": 0.0124,
+        "l-spike": 0.8428,
+        "l_set": 0.0074
       }
     },
     {
@@ -251,17 +251,17 @@
       "end_frame": 116,
       "start_s": 3.6,
       "end_s": 3.9,
-      "label": "l-spike",
-      "score": 0.3721,
+      "label": "r-pass",
+      "score": 0.3894,
       "probabilities": {
-        "r_set": 0.0161,
-        "r_spike": 0.1075,
-        "r-pass": 0.2926,
-        "r_winpoint": 0.1237,
-        "l_winpoint": 0.0584,
-        "l-pass": 0.0194,
-        "l-spike": 0.3721,
-        "l_set": 0.0102
+        "r_set": 0.0187,
+        "r_spike": 0.1251,
+        "r-pass": 0.3894,
+        "r_winpoint": 0.1259,
+        "l_winpoint": 0.059,
+        "l-pass": 0.024,
+        "l-spike": 0.2485,
+        "l_set": 0.0093
       }
     },
     {
@@ -270,16 +270,16 @@
       "start_s": 3.9,
       "end_s": 4.2,
       "label": "r-pass",
-      "score": 0.7207,
+      "score": 0.7863,
       "probabilities": {
-        "r_set": 0.0458,
-        "r_spike": 0.0285,
-        "r-pass": 0.7207,
-        "r_winpoint": 0.1009,
-        "l_winpoint": 0.039,
-        "l-pass": 0.0174,
-        "l-spike": 0.0364,
-        "l_set": 0.0112
+        "r_set": 0.0329,
+        "r_spike": 0.0268,
+        "r-pass": 0.7863,
+        "r_winpoint": 0.0748,
+        "l_winpoint": 0.026,
+        "l-pass": 0.0159,
+        "l-spike": 0.0252,
+        "l_set": 0.0122
       }
     },
     {
@@ -288,16 +288,16 @@
       "start_s": 4.2,
       "end_s": 4.5,
       "label": "r-pass",
-      "score": 0.8789,
+      "score": 0.8422,
       "probabilities": {
-        "r_set": 0.0118,
-        "r_spike": 0.0117,
-        "r-pass": 0.8789,
-        "r_winpoint": 0.0452,
-        "l_winpoint": 0.0315,
-        "l-pass": 0.006,
-        "l-spike": 0.0094,
-        "l_set": 0.0056
+        "r_set": 0.0161,
+        "r_spike": 0.0141,
+        "r-pass": 0.8422,
+        "r_winpoint": 0.077,
+        "l_winpoint": 0.0252,
+        "l-pass": 0.0074,
+        "l-spike": 0.0098,
+        "l_set": 0.0082
       }
     },
     {
@@ -306,15 +306,15 @@
       "start_s": 4.5,
       "end_s": 4.8,
       "label": "r-pass",
-      "score": 0.8386,
+      "score": 0.8561,
       "probabilities": {
-        "r_set": 0.0388,
-        "r_spike": 0.0122,
-        "r-pass": 0.8386,
-        "r_winpoint": 0.0519,
-        "l_winpoint": 0.0299,
-        "l-pass": 0.0075,
-        "l-spike": 0.0159,
+        "r_set": 0.0345,
+        "r_spike": 0.0117,
+        "r-pass": 0.8561,
+        "r_winpoint": 0.0458,
+        "l_winpoint": 0.027,
+        "l-pass": 0.0067,
+        "l-spike": 0.013,
         "l_set": 0.0052
       }
     },
@@ -324,16 +324,16 @@
       "start_s": 4.8,
       "end_s": 5.1,
       "label": "r-pass",
-      "score": 0.8228,
+      "score": 0.7711,
       "probabilities": {
-        "r_set": 0.0382,
-        "r_spike": 0.018,
-        "r-pass": 0.8228,
-        "r_winpoint": 0.0514,
-        "l_winpoint": 0.0381,
-        "l-pass": 0.008,
-        "l-spike": 0.0142,
-        "l_set": 0.0093
+        "r_set": 0.0848,
+        "r_spike": 0.0244,
+        "r-pass": 0.7711,
+        "r_winpoint": 0.0501,
+        "l_winpoint": 0.0362,
+        "l-pass": 0.0115,
+        "l-spike": 0.012,
+        "l_set": 0.0099
       }
     },
     {
@@ -342,16 +342,16 @@
       "start_s": 5.1,
       "end_s": 5.4,
       "label": "r-pass",
-      "score": 0.7513,
+      "score": 0.7194,
       "probabilities": {
-        "r_set": 0.0503,
-        "r_spike": 0.0483,
-        "r-pass": 0.7513,
-        "r_winpoint": 0.0481,
-        "l_winpoint": 0.0626,
-        "l-pass": 0.0127,
-        "l-spike": 0.0144,
-        "l_set": 0.0124
+        "r_set": 0.0426,
+        "r_spike": 0.0709,
+        "r-pass": 0.7194,
+        "r_winpoint": 0.0477,
+        "l_winpoint": 0.0784,
+        "l-pass": 0.0134,
+        "l-spike": 0.0138,
+        "l_set": 0.0139
       }
     },
     {
@@ -360,16 +360,16 @@
       "start_s": 5.4,
       "end_s": 5.7,
       "label": "r_set",
-      "score": 0.7625,
+      "score": 0.7223,
       "probabilities": {
-        "r_set": 0.7625,
-        "r_spike": 0.0221,
-        "r-pass": 0.0715,
-        "r_winpoint": 0.0426,
-        "l_winpoint": 0.0522,
-        "l-pass": 0.0112,
-        "l-spike": 0.0123,
-        "l_set": 0.0256
+        "r_set": 0.7223,
+        "r_spike": 0.0216,
+        "r-pass": 0.1147,
+        "r_winpoint": 0.0424,
+        "l_winpoint": 0.0474,
+        "l-pass": 0.0139,
+        "l-spike": 0.0138,
+        "l_set": 0.024
       }
     },
     {
@@ -378,16 +378,16 @@
       "start_s": 5.7,
       "end_s": 6.0,
       "label": "r_set",
-      "score": 0.825,
+      "score": 0.8165,
       "probabilities": {
-        "r_set": 0.825,
-        "r_spike": 0.0156,
-        "r-pass": 0.0566,
-        "r_winpoint": 0.034,
-        "l_winpoint": 0.0336,
-        "l-pass": 0.012,
-        "l-spike": 0.0144,
-        "l_set": 0.0087
+        "r_set": 0.8165,
+        "r_spike": 0.0171,
+        "r-pass": 0.0537,
+        "r_winpoint": 0.0396,
+        "l_winpoint": 0.035,
+        "l-pass": 0.014,
+        "l-spike": 0.0135,
+        "l_set": 0.0105
       }
     },
     {
@@ -396,16 +396,16 @@
       "start_s": 6.0,
       "end_s": 6.3,
       "label": "r_set",
-      "score": 0.5074,
+      "score": 0.5745,
       "probabilities": {
-        "r_set": 0.5074,
-        "r_spike": 0.1257,
-        "r-pass": 0.1678,
-        "r_winpoint": 0.0868,
-        "l_winpoint": 0.0533,
-        "l-pass": 0.017,
-        "l-spike": 0.0265,
-        "l_set": 0.0155
+        "r_set": 0.5745,
+        "r_spike": 0.1088,
+        "r-pass": 0.1373,
+        "r_winpoint": 0.082,
+        "l_winpoint": 0.0445,
+        "l-pass": 0.018,
+        "l-spike": 0.02,
+        "l_set": 0.015
       }
     },
     {
@@ -414,16 +414,16 @@
       "start_s": 6.3,
       "end_s": 6.6,
       "label": "r-pass",
-      "score": 0.2028,
+      "score": 0.3072,
       "probabilities": {
-        "r_set": 0.1752,
-        "r_spike": 0.0972,
-        "r-pass": 0.2028,
-        "r_winpoint": 0.0705,
-        "l_winpoint": 0.1804,
-        "l-pass": 0.1763,
-        "l-spike": 0.0724,
-        "l_set": 0.025
+        "r_set": 0.1277,
+        "r_spike": 0.0925,
+        "r-pass": 0.3072,
+        "r_winpoint": 0.089,
+        "l_winpoint": 0.132,
+        "l-pass": 0.1921,
+        "l-spike": 0.0425,
+        "l_set": 0.017
       }
     },
     {
@@ -432,16 +432,16 @@
       "start_s": 6.6,
       "end_s": 6.9,
       "label": "l-pass",
-      "score": 0.3641,
+      "score": 0.4733,
       "probabilities": {
-        "r_set": 0.0378,
-        "r_spike": 0.3447,
-        "r-pass": 0.0302,
-        "r_winpoint": 0.0465,
-        "l_winpoint": 0.0979,
-        "l-pass": 0.3641,
-        "l-spike": 0.0537,
-        "l_set": 0.025
+        "r_set": 0.0402,
+        "r_spike": 0.2511,
+        "r-pass": 0.0321,
+        "r_winpoint": 0.0476,
+        "l_winpoint": 0.0854,
+        "l-pass": 0.4733,
+        "l-spike": 0.0519,
+        "l_set": 0.0184
       }
     },
     {
@@ -450,15 +450,15 @@
       "start_s": 6.9,
       "end_s": 7.2,
       "label": "l-pass",
-      "score": 0.7692,
+      "score": 0.7748,
       "probabilities": {
-        "r_set": 0.026,
-        "r_spike": 0.0208,
-        "r-pass": 0.0471,
-        "r_winpoint": 0.0427,
-        "l_winpoint": 0.046,
-        "l-pass": 0.7692,
-        "l-spike": 0.0338,
+        "r_set": 0.0208,
+        "r_spike": 0.0213,
+        "r-pass": 0.0482,
+        "r_winpoint": 0.0472,
+        "l_winpoint": 0.0405,
+        "l-pass": 0.7748,
+        "l-spike": 0.033,
         "l_set": 0.0143
       }
     },
@@ -468,16 +468,16 @@
       "start_s": 7.2,
       "end_s": 7.5,
       "label": "l-pass",
-      "score": 0.5645,
+      "score": 0.5573,
       "probabilities": {
-        "r_set": 0.02,
-        "r_spike": 0.0333,
-        "r-pass": 0.0339,
+        "r_set": 0.0196,
+        "r_spike": 0.0366,
+        "r-pass": 0.0402,
         "r_winpoint": 0.1494,
-        "l_winpoint": 0.1059,
-        "l-pass": 0.5645,
-        "l-spike": 0.0538,
-        "l_set": 0.0391
+        "l_winpoint": 0.0906,
+        "l-pass": 0.5573,
+        "l-spike": 0.0517,
+        "l_set": 0.0545
       }
     },
     {
@@ -486,16 +486,16 @@
       "start_s": 7.5,
       "end_s": 7.8,
       "label": "l-pass",
-      "score": 0.4753,
+      "score": 0.5452,
       "probabilities": {
-        "r_set": 0.0447,
-        "r_spike": 0.0343,
-        "r-pass": 0.0218,
-        "r_winpoint": 0.1516,
-        "l_winpoint": 0.1811,
-        "l-pass": 0.4753,
-        "l-spike": 0.0313,
-        "l_set": 0.0599
+        "r_set": 0.0279,
+        "r_spike": 0.0435,
+        "r-pass": 0.023,
+        "r_winpoint": 0.1252,
+        "l_winpoint": 0.1648,
+        "l-pass": 0.5452,
+        "l-spike": 0.0279,
+        "l_set": 0.0425
       }
     },
     {
@@ -504,16 +504,16 @@
       "start_s": 7.8,
       "end_s": 8.1,
       "label": "l-pass",
-      "score": 0.6916,
+      "score": 0.6678,
       "probabilities": {
-        "r_set": 0.0189,
-        "r_spike": 0.0281,
-        "r-pass": 0.0311,
-        "r_winpoint": 0.0682,
-        "l_winpoint": 0.0596,
-        "l-pass": 0.6916,
-        "l-spike": 0.0458,
-        "l_set": 0.0566
+        "r_set": 0.0191,
+        "r_spike": 0.0345,
+        "r-pass": 0.0245,
+        "r_winpoint": 0.0657,
+        "l_winpoint": 0.0791,
+        "l-pass": 0.6678,
+        "l-spike": 0.0435,
+        "l_set": 0.0658
       }
     },
     {
@@ -522,16 +522,16 @@
       "start_s": 8.1,
       "end_s": 8.4,
       "label": "l_set",
-      "score": 0.6976,
+      "score": 0.6224,
       "probabilities": {
-        "r_set": 0.0148,
-        "r_spike": 0.0407,
-        "r-pass": 0.0165,
-        "r_winpoint": 0.035,
-        "l_winpoint": 0.075,
-        "l-pass": 0.078,
-        "l-spike": 0.0424,
-        "l_set": 0.6976
+        "r_set": 0.0175,
+        "r_spike": 0.0526,
+        "r-pass": 0.0178,
+        "r_winpoint": 0.0399,
+        "l_winpoint": 0.0846,
+        "l-pass": 0.1273,
+        "l-spike": 0.0379,
+        "l_set": 0.6224
       }
     },
     {
@@ -540,16 +540,16 @@
       "start_s": 8.4,
       "end_s": 8.7,
       "label": "l_set",
-      "score": 0.7719,
+      "score": 0.7786,
       "probabilities": {
-        "r_set": 0.0181,
-        "r_spike": 0.0631,
-        "r-pass": 0.0136,
-        "r_winpoint": 0.0473,
-        "l_winpoint": 0.0351,
-        "l-pass": 0.0207,
-        "l-spike": 0.0301,
-        "l_set": 0.7719
+        "r_set": 0.0132,
+        "r_spike": 0.0662,
+        "r-pass": 0.0159,
+        "r_winpoint": 0.0416,
+        "l_winpoint": 0.0347,
+        "l-pass": 0.0214,
+        "l-spike": 0.0284,
+        "l_set": 0.7786
       }
     },
     {
@@ -558,16 +558,16 @@
       "start_s": 8.7,
       "end_s": 9.0,
       "label": "l_set",
-      "score": 0.4831,
+      "score": 0.5862,
       "probabilities": {
-        "r_set": 0.0261,
-        "r_spike": 0.0634,
-        "r-pass": 0.0639,
-        "r_winpoint": 0.0457,
-        "l_winpoint": 0.1613,
-        "l-pass": 0.0309,
-        "l-spike": 0.1256,
-        "l_set": 0.4831
+        "r_set": 0.0201,
+        "r_spike": 0.0532,
+        "r-pass": 0.0625,
+        "r_winpoint": 0.0464,
+        "l_winpoint": 0.1323,
+        "l-pass": 0.0318,
+        "l-spike": 0.0676,
+        "l_set": 0.5862
       }
     },
     {
@@ -575,17 +575,17 @@
       "end_frame": 278,
       "start_s": 9.0,
       "end_s": 9.3,
-      "label": "l-spike",
-      "score": 0.2299,
+      "label": "l-pass",
+      "score": 0.254,
       "probabilities": {
-        "r_set": 0.0299,
-        "r_spike": 0.09,
-        "r-pass": 0.0952,
-        "r_winpoint": 0.1196,
-        "l_winpoint": 0.2004,
-        "l-pass": 0.1334,
-        "l-spike": 0.2299,
-        "l_set": 0.1015
+        "r_set": 0.0211,
+        "r_spike": 0.0914,
+        "r-pass": 0.1582,
+        "r_winpoint": 0.1357,
+        "l_winpoint": 0.1652,
+        "l-pass": 0.254,
+        "l-spike": 0.1433,
+        "l_set": 0.0311
       }
     },
     {
@@ -594,16 +594,16 @@
       "start_s": 9.3,
       "end_s": 9.6,
       "label": "l-spike",
-      "score": 0.3937,
+      "score": 0.3301,
       "probabilities": {
-        "r_set": 0.0192,
-        "r_spike": 0.1488,
-        "r-pass": 0.026,
-        "r_winpoint": 0.034,
-        "l_winpoint": 0.2839,
-        "l-pass": 0.0577,
-        "l-spike": 0.3937,
-        "l_set": 0.0367
+        "r_set": 0.0159,
+        "r_spike": 0.1353,
+        "r-pass": 0.0348,
+        "r_winpoint": 0.036,
+        "l_winpoint": 0.2754,
+        "l-pass": 0.1385,
+        "l-spike": 0.3301,
+        "l_set": 0.0341
       }
     },
     {
@@ -612,16 +612,16 @@
       "start_s": 9.6,
       "end_s": 9.9,
       "label": "l-spike",
-      "score": 0.6454,
+      "score": 0.6808,
       "probabilities": {
-        "r_set": 0.017,
-        "r_spike": 0.1032,
-        "r-pass": 0.038,
-        "r_winpoint": 0.0595,
-        "l_winpoint": 0.0894,
-        "l-pass": 0.0298,
-        "l-spike": 0.6454,
-        "l_set": 0.0177
+        "r_set": 0.0169,
+        "r_spike": 0.0844,
+        "r-pass": 0.0374,
+        "r_winpoint": 0.0609,
+        "l_winpoint": 0.0805,
+        "l-pass": 0.0211,
+        "l-spike": 0.6808,
+        "l_set": 0.0179
       }
     },
     {
@@ -630,16 +630,16 @@
       "start_s": 9.9,
       "end_s": 10.2,
       "label": "l_winpoint",
-      "score": 0.4053,
+      "score": 0.3653,
       "probabilities": {
-        "r_set": 0.0158,
-        "r_spike": 0.2512,
-        "r-pass": 0.1212,
-        "r_winpoint": 0.0651,
-        "l_winpoint": 0.4053,
-        "l-pass": 0.0752,
-        "l-spike": 0.0517,
-        "l_set": 0.0145
+        "r_set": 0.0216,
+        "r_spike": 0.1618,
+        "r-pass": 0.1701,
+        "r_winpoint": 0.0734,
+        "l_winpoint": 0.3653,
+        "l-pass": 0.1026,
+        "l-spike": 0.0945,
+        "l_set": 0.0108
       }
     },
     {
@@ -648,16 +648,16 @@
       "start_s": 10.2,
       "end_s": 10.5,
       "label": "l_winpoint",
-      "score": 0.6172,
+      "score": 0.5839,
       "probabilities": {
-        "r_set": 0.0123,
-        "r_spike": 0.0452,
-        "r-pass": 0.1915,
-        "r_winpoint": 0.0471,
-        "l_winpoint": 0.6172,
-        "l-pass": 0.0377,
-        "l-spike": 0.032,
-        "l_set": 0.0171
+        "r_set": 0.0132,
+        "r_spike": 0.0861,
+        "r-pass": 0.1769,
+        "r_winpoint": 0.0495,
+        "l_winpoint": 0.5839,
+        "l-pass": 0.0401,
+        "l-spike": 0.0304,
+        "l_set": 0.02
       }
     },
     {
@@ -666,16 +666,16 @@
       "start_s": 10.333,
       "end_s": 10.633,
       "label": "l_winpoint",
-      "score": 0.7625,
+      "score": 0.7202,
       "probabilities": {
-        "r_set": 0.0136,
-        "r_spike": 0.0575,
-        "r-pass": 0.0743,
-        "r_winpoint": 0.028,
-        "l_winpoint": 0.7625,
-        "l-pass": 0.0212,
-        "l-spike": 0.0282,
-        "l_set": 0.0146
+        "r_set": 0.0147,
+        "r_spike": 0.0784,
+        "r-pass": 0.0776,
+        "r_winpoint": 0.0383,
+        "l_winpoint": 0.7202,
+        "l-pass": 0.024,
+        "l-spike": 0.0309,
+        "l_set": 0.016
       }
     }
   ]

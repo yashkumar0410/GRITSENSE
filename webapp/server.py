@@ -35,6 +35,8 @@ JOBS = WEB / "jobs"
 SAMPLE_BACKUP = WEB / "sample_backup"
 SAMPLE_VIDEO = ROOT / "sample3.mp4"
 sys.path.insert(0, str(ROOT))
+from pipeline_profiling import is_enabled as profiling_enabled
+
 # Detection files the pipeline overwrites in the project root.
 SAMPLE_FILES = ("player_keypoints_mf3_pose.json", "ball.csv", "ball_clean.csv", "ball_candidates.json")
 # Court keypoint detection is unreliable, so every run uses the hand-made per-frame
@@ -166,6 +168,7 @@ def _restore_sample() -> None:
 
 def _run(job_id: str, cmd: list[str], stages: list | None, base: tuple[float, float]) -> None:
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUNBUFFERED="1")
+    started = time.perf_counter()
     proc = subprocess.Popen(cmd, cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             text=True, encoding="utf-8", errors="replace", bufsize=1)
     _procs[job_id] = proc
@@ -191,6 +194,9 @@ def _run(job_id: str, cmd: list[str], stages: list | None, base: tuple[float, fl
             _update(job_id, engine=line.split(":", 1)[1].strip())
     code = proc.wait()
     _procs.pop(job_id, None)
+    elapsed = time.perf_counter() - started
+    if profiling_enabled():
+        _log(job_id, f"[profile] {Path(cmd[2]).name}: {elapsed:.3f}s wall-clock")
     if _jobs[job_id].get("cancel"):
         raise Cancelled()
     if code != 0:
@@ -211,11 +217,13 @@ def _parse_commentary(path: Path) -> list[dict]:
 
 
 def _process(job_id: str) -> None:
+    process_started = time.perf_counter()
     job = _jobs[job_id]
     folder = JOBS / job_id
     out_dir = folder / "dashboard"
     py = sys.executable
     _update(job_id, status="running", started=time.time(), stage="prepare", progress=0.01)
+    _log(job_id, f"Pipeline interpreter: {py}")
 
     if job["mode"] == "demo":
         _restore_sample()
@@ -230,7 +238,10 @@ def _process(job_id: str) -> None:
         _log(job_id, f"Input: {info['width']}x{info['height']} @ {info['fps']:.1f} fps, {info['frames']} frames")
         if (info["width"], info["height"]) != (TARGET_W, TARGET_H):
             _log(job_id, f"Rescaling to {TARGET_W}x{TARGET_H} (the court model expects 1080p)")
+        transcode_started = time.perf_counter()
         _transcode(src, video, scale=True)
+        if profiling_enabled():
+            _log(job_id, f"[profile] input video transcode: {time.perf_counter() - transcode_started:.3f}s")
         frames = _probe(video)["frames"] or info["frames"]
         _update(job_id, frames=frames, progress=0.03)
 
@@ -239,26 +250,32 @@ def _process(job_id: str) -> None:
         if frames > annotated:
             _log(job_id, f"WARNING: video has {frames} frames; frames past {annotated} have no court mapping")
 
-        _run(job_id, [py, "-u", "master_main.py", "--video", str(video), "--teams", *job["teams"]],
+        _run(job_id, [py, "-u", "master_main.py", "--video", str(video), "--device", job["device"],
+                      "--teams", *job["teams"]],
              _FULL_STAGES, (0.04, 0.45))
         base = (0.70, 0.96)
 
     _update(job_id, stage="dashboard", progress=base[0])
     cmd = [py, "-u", "tactical_dashboard.py", "--video", str(video), "--out", str(out_dir),
-           "--teams", *job["teams"], "--nlp", job["nlp"]]
+           "--teams", *job["teams"], "--nlp", job["nlp"], "--device", job["device"]]
     if job.get("max_frames"):
         cmd += ["--max-frames", str(job["max_frames"])]
     _log(job_id, "=== DASHBOARD ===")
     _run(job_id, cmd, None, base)
 
     _update(job_id, stage="finalize", progress=0.97)
+    transcode_started = time.perf_counter()
     _transcode(out_dir / "gritsense_dashboard.mp4", folder / "dashboard.mp4")
+    if profiling_enabled():
+        _log(job_id, f"[profile] final dashboard transcode: {time.perf_counter() - transcode_started:.3f}s")
     commentary = _parse_commentary(out_dir / "commentary.txt")
     (folder / "commentary.json").write_text(json.dumps(commentary), encoding="utf-8")
     snapshots = sorted(p.name for p in out_dir.glob("dashboard_*.png"))
     fps = _probe(folder / "dashboard.mp4")["fps"]
     _update(job_id, status="done", stage="done", progress=1.0, finished=time.time(),
             fps=fps, snapshots=snapshots, commentary_count=len(commentary))
+    if profiling_enabled():
+        _log(job_id, f"[profile] complete web job: {time.perf_counter() - process_started:.3f}s wall-clock")
 
 
 def _worker() -> None:
@@ -296,8 +313,13 @@ def system():
     if not _system_cache:
         try:
             import torch
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                gpu = torch.xpu.get_device_name(0)
+            elif torch.cuda.is_available():
+                gpu = torch.cuda.get_device_name(0)
+            else:
+                gpu = None
 
-            gpu = torch.cuda.get_device_name(0) if torch.cuda.is_available() else None
         except ImportError:
             gpu = None
         from analytics.nlp import DEFAULT_LOCAL_MODEL
@@ -330,12 +352,16 @@ def create_job():
     teams = [form.get("team_left", "BRA").strip()[:4].upper() or "BRA",
              form.get("team_right", "JPN").strip()[:4].upper() or "JPN"]
     nlp = form.get("nlp", "local") if form.get("nlp") in ("local", "template") else "local"
+    device = form.get("device", "auto")
+    if device not in ("auto", "cpu", "cuda", "xpu"):
+        abort(400, "device must be auto, cpu, cuda, or xpu")
     max_frames = int(form["max_frames"]) if form.get("max_frames", "").isdigit() else None
 
     job_id = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4]
     folder = JOBS / job_id
     folder.mkdir()
-    job = {"id": job_id, "mode": mode, "teams": teams, "nlp": nlp, "max_frames": max_frames,
+    job = {"id": job_id, "mode": mode, "teams": teams, "nlp": nlp, "device": device,
+           "max_frames": max_frames,
            "status": "queued", "stage": "queued", "progress": 0.0, "created": time.time(),
            "title": form.get("title", "").strip()[:80], "log": []}
 

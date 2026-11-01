@@ -86,7 +86,7 @@
   }
 
   /* ---------------- New analysis form ---------------- */
-  const form = { mode: "full", nlp: "local", len: "full", file: null, vw: 0, vh: 0 };
+  const form = { mode: "full", nlp: "local", device: "auto", len: "full", file: null, vw: 0, vh: 0 };
   // Only reads the video's size and length; court corners come from annotations.json.
   const probeVideo = document.createElement("video");
   probeVideo.muted = true;
@@ -106,6 +106,7 @@
     $("#settings-num").textContent = form.mode === "full" ? "2" : "1";
   });
   seg("nlp-seg", "nlp");
+  $("#device").addEventListener("change", (e) => { form.device = e.target.value; });
   seg("len-seg", "len", () => ($("#frames-wrap").hidden = form.len !== "preview"));
 
   function refreshForm() {
@@ -171,6 +172,7 @@
     fd.append("team_left", $("#team-left").value);
     fd.append("team_right", $("#team-right").value);
     fd.append("nlp", form.nlp);
+    fd.append("device", form.device);
     if (form.len === "preview") fd.append("max_frames", $("#max-frames").value);
     if (form.mode === "full") {
       fd.append("video", form.file);
@@ -232,6 +234,7 @@
       `<span class="teams-tag"><span class="sw t0" style="width:8px;height:8px;border-radius:2px;display:inline-block"></span><b>${esc(j.teams[0])}</b> vs <b>${esc(j.teams[1])}</b><span class="sw t1" style="width:8px;height:8px;border-radius:2px;display:inline-block"></span></span>`,
       `<span>${j.mode === "demo" ? "Sample match" : "Full pipeline"}</span>`,
       `<span>${j.nlp === "local" ? "Offline LLM commentary" : "Template commentary"}</span>`,
+      `<span>Device: ${esc(j.device || "auto")}</span>`,
       `<span>${new Date(j.created * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>`,
     ];
     if (j.finished && j.started) bits.push(`<span>Processed in ${dur(j.finished - j.started)}</span>`);
