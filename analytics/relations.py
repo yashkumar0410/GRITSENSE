@@ -50,10 +50,14 @@ class TeamShape:
     balance: float
 
 
+def _threat_values(values: np.ndarray) -> float:
+    flat = np.sort(values, axis=None)
+    k = max(1, int(len(flat) * THREAT_TOP_SHARE))
+    return float(flat[-k:].mean())
+
+
 def threat(surface: PhysicsSurface) -> float:
-    values = np.sort(surface.values, axis=None)
-    k = max(1, int(len(values) * THREAT_TOP_SHARE))
-    return float(values[-k:].mean())
+    return _threat_values(surface.values)
 
 
 def key_matchups(epv: PhysicsEPV, surface: PhysicsSurface, defenders, key_attacker: int | None) -> list[Matchup]:
@@ -61,11 +65,12 @@ def key_matchups(epv: PhysicsEPV, surface: PhysicsSurface, defenders, key_attack
     if not defenders or key_attacker is None:
         return []
     base = threat(surface)
-    impacts = []
-    for i, d in enumerate(defenders):
-        others = defenders[:i] + defenders[i + 1:]
-        without = epv.surface(surface.contact, others, surface.defend_side, time_to_hit=surface.time_to_hit)
-        impacts.append(max(0.0, threat(without) - base))
+    # Only the ranking values are needed, so share the geometry/flight work with
+    # the main surface instead of rebuilding a full surface per omitted defender.
+    without_values = epv.leave_one_out_values(
+        surface.contact, defenders, surface.defend_side, surface.time_to_hit
+    )
+    impacts = [max(0.0, _threat_values(values) - base) for values in without_values]
     total = sum(impacts)
     matchups = [
         Matchup(key_attacker, d.id, imp, imp / total if total > 1e-9 else 0.0)

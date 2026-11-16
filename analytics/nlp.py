@@ -23,6 +23,9 @@ SYSTEM_PROMPT = (
 )
 
 DEFAULT_LOCAL_MODEL = "Qwen/Qwen2.5-3B-Instruct"
+# fp16 is the default; 4bit loads the same model quantized to NF4 so the weights fit
+# in a 6 GB card (needs bitsandbytes + accelerate).
+QUANT_CHOICES = ("fp16", "4bit")
 
 
 def build_prompt(kind: str, facts: dict, recent: list[str]) -> str:
@@ -90,7 +93,7 @@ def _clean(text: str) -> str:
 class LocalLLMBackend:
     name = "LOCAL LLM"
 
-    def __init__(self, model: str = DEFAULT_LOCAL_MODEL, device="cpu"):
+    def __init__(self, model: str = DEFAULT_LOCAL_MODEL, device="cpu", quant: str = "fp16"):
         import torch
         from huggingface_hub import snapshot_download
         from transformers import pipeline
@@ -103,13 +106,38 @@ class LocalLLMBackend:
             print(f"  [nlp] {model} not cached yet - downloading once…")
             path = snapshot_download(model)
         requested = torch.device(device)
+        model_kwargs = {}
         if requested.type == "cpu":
             pipeline_device = -1
         elif requested.type == "cuda":
+            torch.cuda.empty_cache()
             pipeline_device = requested.index or 0
+            model_kwargs = {
+                "torch_dtype": torch.float16,
+                "low_cpu_mem_usage": True,
+            }
         else:
             pipeline_device = requested
-        self.pipe = pipeline("text-generation", model=path, device=pipeline_device, dtype="auto")
+        self.quant = quant
+        if quant == "fp16":
+            self.pipe = pipeline("text-generation", model=path, device=pipeline_device, model_kwargs=model_kwargs)
+            return
+        if requested.type != "cuda":
+            raise ValueError(f"quant={quant!r} needs a CUDA device (selected {requested.type})")
+        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
+        print("  [nlp] loading local model in 4-bit NF4 (bitsandbytes)")
+        config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+        )
+        model_obj = AutoModelForCausalLM.from_pretrained(
+            path, quantization_config=config, device_map={"": pipeline_device}, low_cpu_mem_usage=True,
+        )
+        self.pipe = pipeline("text-generation", model=model_obj,
+                             tokenizer=AutoTokenizer.from_pretrained(path))
 
     def generate(self, kind: str, facts: dict, recent: list[str]) -> str | None:
         # Small models copy whatever text they are shown, so they get plain facts and
@@ -120,7 +148,9 @@ class LocalLLMBackend:
             {"role": "assistant", "content": _EXAMPLE_LINE},
             {"role": "user", "content": facts_to_text(kind, facts)},
         ]
-        out = self.pipe(messages, max_new_tokens=60, do_sample=True, temperature=0.7, top_p=0.9)
+        import torch
+        with torch.inference_mode():
+            out = self.pipe(messages, max_new_tokens=40, do_sample=True, temperature=0.7, top_p=0.9)
         text = out[0]["generated_text"][-1]["content"]
         # Keep only the first sentence; small models sometimes ramble.
         for stop in (". ", "! ", "? "):
@@ -130,12 +160,20 @@ class LocalLLMBackend:
         return _clean(text) or None
 
 
-def build_backend(mode: str = "local", local_model: str = DEFAULT_LOCAL_MODEL, device="cpu"):
+def build_backend(mode: str = "local", local_model: str = DEFAULT_LOCAL_MODEL, device="cpu",
+                  quant: str = "fp16"):
     """Return the offline local backend, or None for template-only commentary."""
     if mode == "template":
         return None
+    if quant not in QUANT_CHOICES:
+        raise ValueError(f"quant must be one of {QUANT_CHOICES}, got {quant!r}")
+    if quant == "4bit":
+        try:
+            import bitsandbytes  # noqa: F401  (only needed for the quantized load)
+        except ImportError as exc:
+            raise RuntimeError("4-bit commentary needs bitsandbytes: pip install bitsandbytes accelerate") from exc
     try:
-        return LocalLLMBackend(local_model, device=device)
+        return LocalLLMBackend(local_model, device=device, quant=quant)
     except ImportError:
         if str(device) != "cpu":
             raise

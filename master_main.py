@@ -9,13 +9,14 @@ video -> player tracking + pose inference + ball tracking -> fresh JSON/CSV
       -> existing graph/GAT/HRN/temporal pipeline -> existing visualizations
 
 Run from the project root:
-    python master_main.py --video sample3.mp4
+    python master_main.py --video data/sample3.mp4
 
 Required project files:
-    player_detection.pt, pose.pt (or yolov8n-pose.pt), ball.pt,
-    annotations.json, court.png, ball_tracker.py, integrate_and_rebuild.py,
-    visualize_recent_graphs.py, graph_builder.py, sample_data.py, models/,
-    temporal/
+    weights/player_detection.pt, weights/pose.pt (or weights/yolov8n-pose.pt),
+    weights/ball.pt, data/annotations.json, data/court.png,
+    pipeline/ball_tracker.py, pipeline/integrate_and_rebuild.py,
+    pipeline/visualize_recent_graphs.py, pipeline/graph_builder.py,
+    pipeline/sample_data.py, models/, temporal/
 """
 
 from __future__ import annotations
@@ -31,6 +32,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 import torch
+
+import sys as _sys
+_sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent / 'pipeline'))
 
 from pipeline_profiling import (
     enable as enable_profiling,
@@ -130,10 +134,10 @@ def run_video_detections(video_path: Path, selected_device=None) -> torch.device
     # Imported here so --dashboard-only runs without ultralytics installed.
     from ultralytics import YOLO
 
-    player_weights = ROOT / "player_detection.pt"
-    ball_weights = ROOT / "ball.pt"
-    pose_weights = _first_existing(ROOT / "pose.pt", ROOT / "yolov8n-pose.pt")
-    annotations_path = ROOT / "annotations.json"
+    player_weights = ROOT / "weights" / "player_detection.pt"
+    ball_weights = ROOT / "weights" / "ball.pt"
+    pose_weights = _first_existing(ROOT / "weights" / "pose.pt", ROOT / "weights" / "yolov8n-pose.pt")
+    annotations_path = ROOT / "data" / "annotations.json"
 
     missing = [p.name for p in (player_weights, ball_weights, annotations_path) if not p.exists()]
     if pose_weights is None:
@@ -149,10 +153,11 @@ def run_video_detections(video_path: Path, selected_device=None) -> torch.device
 
     resolved_device = resolve_device(selected_device or "auto")
     device = ultralytics_device(resolved_device)
+    use_half = resolved_device.type == "cuda"
     if resolved_device.type == "xpu":
         print(f"Using Intel GPU: {torch.xpu.get_device_name(0)}")
     elif resolved_device.type == "cuda":
-        print(f"Using NVIDIA GPU: {torch.cuda.get_device_name(resolved_device)}")
+        print(f"Using NVIDIA GPU: {torch.cuda.get_device_name(resolved_device)} (FP16 Tensor Cores active)")
     else:
         print("Using CPU")
 
@@ -196,7 +201,7 @@ def run_video_detections(video_path: Path, selected_device=None) -> torch.device
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
 
     # Mini-court used by the original main.py homography visualization.
-    court_image_path = ROOT / "court.png"
+    court_image_path = ROOT / "data" / "court.png"
     court_image = cv2.imread(str(court_image_path))
     if court_image is None:
         cap.release()
@@ -211,7 +216,7 @@ def run_video_detections(video_path: Path, selected_device=None) -> torch.device
     actual_court_height_m = 9.0
     mini_court_margin = 20
 
-    preview_path = ROOT / "master_detection_preview.mp4"
+    preview_path = ROOT / "docs" / "demo" / "master_detection_preview.mp4"
     writer = cv2.VideoWriter(
         str(preview_path),
         cv2.VideoWriter_fourcc(*"mp4v"),
@@ -265,6 +270,7 @@ def run_video_detections(video_path: Path, selected_device=None) -> torch.device
                     tracker="botsort.yaml",
                     verbose=False,
                     device=device,
+                    half=use_half,
                     quantize=16 if device != "cpu" else 32,
                 )
             if "player" not in verified_models:
@@ -305,7 +311,7 @@ def run_video_detections(video_path: Path, selected_device=None) -> torch.device
             )
             with measure(pose_timing, device=device):
                 pose_result = pose_model.predict(
-                    frame, conf=0.10, device=device, verbose=False
+                    frame, conf=0.10, device=device, verbose=False, half=use_half
                 )[0]
             if "pose" not in verified_models:
                 report_model_device("Pose detector", pose_model, device)
@@ -516,11 +522,11 @@ def run_video_detections(video_path: Path, selected_device=None) -> torch.device
         cap.release()
         writer.release()
 
-    player_output = ROOT / "player_keypoints_mf3_pose.json"
+    player_output = ROOT / "data" / "player_keypoints_mf3_pose.json"
     with player_output.open("w", encoding="utf-8") as f:
         json.dump(player_data, f, indent=2)
 
-    ball_output = ROOT / "ball.csv"
+    ball_output = ROOT / "data" / "ball.csv"
     with ball_output.open("w", newline="", encoding="utf-8") as f:
         csv_writer = csv.writer(f)
         csv_writer.writerow([
@@ -541,7 +547,7 @@ def run_video_detections(video_path: Path, selected_device=None) -> torch.device
     return resolved_device
 
 
-def run_existing_downstream(temporal_model="gru", temporal_checkpoint=None, device="auto"):
+def run_existing_downstream(temporal_model="gru", temporal_checkpoint=None, device="auto", visualize_graphs=False):
     """Run graph/HRN/sequence generation and optional trained temporal inference."""
     print("\n" + "=" * 76)
     print("STAGE 2 — EXISTING GRAPH → GAT → HRN → TEMPORAL PIPELINE")
@@ -554,12 +560,15 @@ def run_existing_downstream(temporal_model="gru", temporal_checkpoint=None, devi
             device=device,
         )
 
-    print("\n" + "=" * 76)
-    print("STAGE 3 — EXISTING GRAPH VISUALIZATIONS")
-    print("=" * 76)
-    import visualize_recent_graphs
-    with measure("pipeline.graph_visualizations"):
-        visualize_recent_graphs.main()
+    if visualize_graphs:
+        print("\n" + "=" * 76)
+        print("STAGE 3 — EXISTING GRAPH VISUALIZATIONS")
+        print("=" * 76)
+        import visualize_recent_graphs
+        with measure("pipeline.graph_visualizations"):
+            visualize_recent_graphs.main()
+    else:
+        print("\nSTAGE 3 — Debug graph image dumping skipped (use --visualize-graphs to enable)")
 
 
 def run_pretrained_group_activity(video_path: Path, device="auto") -> None:
@@ -572,7 +581,7 @@ def run_pretrained_group_activity(video_path: Path, device="auto") -> None:
         with measure("pipeline.pretrained_group_activity"):
             group_activity.run(
                 video_path,
-                ROOT / "player_keypoints_mf3_pose.json",
+                ROOT / "data" / "player_keypoints_mf3_pose.json",
                 device=str(resolve_device(device)),
             )
     except Exception as exc:  # optional stage: never block the rest of the pipeline
@@ -581,11 +590,55 @@ def run_pretrained_group_activity(video_path: Path, device="auto") -> None:
         print(f"Pretrained group-activity GAT skipped: {type(exc).__name__}: {exc}")
 
 
+class _LlmPreload:
+    """Load the dashboard's commentary model on a worker thread.
+
+    The model is needed only after the group-activity stage, so its (mostly
+    VRAM-copy) load can run while that stage still owns the GPU. With NF4 the
+    weights need ~2 GB, which fits beside the GAT/HRN; nothing else changes.
+    """
+
+    def __init__(self, device, quant: str = "fp16"):
+        import threading
+        self._device = device
+        self._quant = quant
+        self.backend = None
+        self.error: Exception | None = None
+        self.elapsed = 0.0
+        self._thread = threading.Thread(target=self._run, name="llm-preload", daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        started = time.perf_counter()
+        try:
+            from analytics.nlp import build_backend
+            self.backend = build_backend("local", device=self._device, quant=self._quant)
+        except Exception as exc:  # fall back to the dashboard's own load
+            self.error = exc
+        finally:
+            self.elapsed = time.perf_counter() - started
+
+    def take(self):
+        """Wait for the load; return the backend, or None if it failed."""
+        started = time.perf_counter()
+        self._thread.join()
+        waited = time.perf_counter() - started
+        record("pipeline.llm_preload", self.elapsed)
+        record("pipeline.llm_preload_wait", waited)
+        print(f"Commentary backend preloaded in {self.elapsed:.3f}s "
+              f"({waited:.3f}s waited before the dashboard needed it)")
+        if self.error is not None:
+            print(f"WARNING: commentary preload failed ({type(self.error).__name__}: {self.error}); "
+                  "the dashboard will load it itself.")
+            return None
+        return self.backend
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Run the GRITSENSE video-to-temporal pipeline.")
     parser.add_argument(
         "--video",
-        default="sample3.mp4",
+        default="data/sample3.mp4",
         help="Input video path (absolute or relative to the project directory).",
     )
     parser.add_argument(
@@ -606,6 +659,10 @@ def parse_args():
         help="Render the tactical dashboard (point-chance map, recommended play, commentary) at the end.",
     )
     parser.add_argument(
+        "--visualize-graphs", action="store_true",
+        help="Render debug PNG plots for all frame graphs (slow, ~5 min; off by default).",
+    )
+    parser.add_argument(
         "--dashboard-only", action="store_true",
         help="Skip detection and downstream stages; render the dashboard from existing outputs.",
     )
@@ -618,13 +675,29 @@ def parse_args():
         help="Inference device: auto (Intel XPU, CUDA, then CPU), cpu, cuda, or xpu.",
     )
     parser.add_argument(
+        "--commentary-mode", choices=("background", "serialized"), default="background",
+        help="Dashboard LLM timing: worker thread during the analysis pass (background, default) "
+             "or after it, with the GPU to itself (serialized).",
+    )
+    parser.add_argument(
+        "--llm-quant", choices=("fp16", "4bit"), default="fp16",
+        help="Dashboard commentary model precision on CUDA: fp16 (default) or 4bit (NF4).",
+    )
+    parser.add_argument(
+        "--preload-llm", action="store_true",
+        help="Load the dashboard commentary model on a worker thread during the group-activity "
+             "stage instead of at dashboard start (only with --dashboard).",
+    )
+    parser.add_argument(
         "--teams", nargs=2, default=["BRA", "JPN"], metavar=("LEFT", "RIGHT"),
         help="Dashboard team names for the left and right halves.",
     )
     return parser.parse_args()
 
 
-def run_dashboard(video_path: Path, team_names, device="auto"):
+def run_dashboard(video_path: Path, team_names, device="auto",
+                  commentary_mode: str = "background", llm_quant: str = "fp16",
+                  prebuilt_backend=None):
     print("\n" + "=" * 76)
     print("STAGE 4 — TACTICAL DASHBOARD (MOCK GAT / HRN / EPV + NLP)")
     print("=" * 76)
@@ -632,12 +705,15 @@ def run_dashboard(video_path: Path, team_names, device="auto"):
     with measure("pipeline.dashboard_render"):
         return tactical_dashboard.render_dashboard(
             video_path=video_path,
-            players_path=ROOT / "player_keypoints_mf3_pose.json",
-            ball_path=ROOT / "ball.csv",
-            annotations_path=ROOT / "annotations.json",
+            players_path=ROOT / "data" / "player_keypoints_mf3_pose.json",
+            ball_path=ROOT / "data" / "ball.csv",
+            annotations_path=ROOT / "data" / "annotations.json",
             out_dir=ROOT / "output_recent" / "dashboard",
             team_names={0: team_names[0], 1: team_names[1]},
             device=str(resolve_device(device)),
+            commentary_mode=commentary_mode,
+            llm_quant=llm_quant,
+            prebuilt_backend=prebuilt_backend,
         )
 
 
@@ -650,7 +726,7 @@ def main():
         video_path = (ROOT / video_path).resolve()
 
     if args.dashboard_only:
-        run_dashboard(video_path, args.teams, args.device)
+        run_dashboard(video_path, args.teams, args.device, args.commentary_mode, args.llm_quant)
         return
 
     if not args.keep_existing_output:
@@ -669,10 +745,17 @@ def main():
         temporal_model=args.temporal_model,
         temporal_checkpoint=args.temporal_checkpoint,
         device=device,
+        visualize_graphs=args.visualize_graphs,
     )
+    llm_preload = None
+    if args.dashboard and args.preload_llm:
+        print("\nPreloading dashboard commentary model during the group-activity stage...")
+        llm_preload = _LlmPreload(resolve_device(device), args.llm_quant)
     run_pretrained_group_activity(video_path, device)
     if args.dashboard:
-        run_dashboard(video_path, args.teams, device)
+        backend = llm_preload.take() if llm_preload is not None else None
+        run_dashboard(video_path, args.teams, device, args.commentary_mode, args.llm_quant,
+                      prebuilt_backend=backend)
 
     print("\n" + "=" * 76)
     print("GRITSENSE MASTER PIPELINE COMPLETE")

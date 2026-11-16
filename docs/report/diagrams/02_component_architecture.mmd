@@ -1,0 +1,85 @@
+%% GritSense - component-level architecture with owning files
+flowchart TB
+    MM["master_main.py<br/>orchestrator"]
+    SRV["webapp/server.py<br/>Flask job API"]
+
+    subgraph PIP["pipeline/"]
+        DS["device_selection.py"]
+        PF["pipeline_profiling.py"]
+        BT["ball_tracker.py"]
+        RD["redetect_ball.py"]
+        CB["clean_ball_track.py"]
+        SD["sample_data.py"]
+        GB["graph_builder.py"]
+        IR["integrate_and_rebuild.py"]
+        GA["group_activity.py"]
+        TD["tactical_dashboard.py"]
+        TG["train_gat_hrn.py"]
+        CP["calibrate_physics.py"]
+        VG["visualize_recent_graphs.py"]
+    end
+
+    subgraph MOD["models/"]
+        GAT["gat.py"]
+        HRN["hrn.py"]
+    end
+
+    subgraph TEMP["temporal/"]
+        SG["sequence_generator.py"]
+        FP["feature_preparation.py<br/>(unused)"]
+        GM["gru_model.py<br/>GRU + Transformer + trainer"]
+    end
+
+    subgraph ANA["analytics/"]
+        EPV["epv.py"]
+        INS["insights.py"]
+        REL["relations.py"]
+        CAM["camera.py"]
+        MOT["motion.py"]
+        POSE["pose_signals.py"]
+        ABT["ball_track.py"]
+        COM["commentary.py"]
+        NLP["nlp.py"]
+        LRN["learned.py"]
+        CON["constants.py"]
+    end
+
+    SRV --> MM
+    MM --> DS
+    MM --> PF
+    MM --> BT
+    MM --> RD --> CB --> ABT
+    MM --> IR
+    MM --> GA
+    MM --> TD
+    IR --> SD
+    IR --> GB
+    IR --> GAT
+    IR --> HRN
+    IR --> SG
+    IR --> GM
+    TG --> GAT
+    TG --> HRN
+    TG --> INS
+    TD --> INS
+    TD --> CAM
+    TD --> MOT
+    TD --> POSE
+    TD --> COM
+    TD --> EPV
+    TD --> LRN
+    INS --> EPV
+    INS --> REL
+    INS --> LRN
+    EPV --> CON
+    ABT --> CON
+    CAM --> CON
+    COM --> NLP
+    CP --> CAM
+    CP --> INS
+    CP --> ABT
+    VG --> IR
+
+    style FP stroke-dasharray: 5 5
+    style GM stroke-dasharray: 5 5
+    style GA stroke-dasharray: 5 5

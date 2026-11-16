@@ -3,6 +3,20 @@ __pycache__/
 .venv/
 venv/
 
+# Runtime job outputs (webapp)
 webapp/jobs/
 webapp/sample_backup/
-GAT/pretrained_checkpoints/
+
+# Pretrained external checkpoints
+pretrained_checkpoints/
+
+# Generated pipeline outputs
+output_recent/
+data/ball.csv
+data/ball_candidates.json
+data/ball_clean.csv
+data/player_keypoints.json
+data/player_keypoints_mf3_pose.json
+
+# Video outputs produced by the pipeline
+docs/demo/master_detection_preview.mp4

@@ -1,0 +1,61 @@
+%% GritSense - high-level system architecture (as implemented)
+flowchart LR
+    V["Broadcast video<br/>319 frames @ 30 fps"]
+
+    subgraph PER["1. Perception"]
+        P1["YOLO player detector<br/>+ BoT-SORT tracker"]
+        P2["YOLO pose<br/>17 COCO keypoints"]
+        P3["YOLO ball detector<br/>+ multi-scale re-detection"]
+        P4["Court homography<br/>hand-annotated corners"]
+    end
+
+    subgraph CLEAN["2. Ball truth"]
+        C1["Static-object rejection"]
+        C2["Physical speed gate"]
+        C3["Dynamic-programming path"]
+        C4["Quadratic gap fill"]
+    end
+
+    subgraph STATE["3. State representation"]
+        S1["49-D interaction graph<br/>players + ball, 4-D edges"]
+        S2["GAT 2 layers, 4 heads"]
+        S3["HRN player - team - scene"]
+        S4["32-D global embedding")
+        S5["8-frame temporal windows"]
+    end
+
+    subgraph DECIDE["4. Decision layer"]
+        D1["Touch detection<br/>pass / set / attack"]
+        D2["Possession + phase<br/>state machine"]
+        D3["Physics EPV<br/>1296 cells x 5 shots"]
+        D4["Matchups + team shape"]
+        D5["Skill-scaled blend<br/>with HRN / GAT"]
+    end
+
+    subgraph OUT["5. Presentation"]
+        O1["1920x1080 dashboard video"]
+        O2["dashboard_insights.json"]
+        O3["LLM or template commentary"]
+        O4["Flask web app + job queue"]
+    end
+
+    V --> P1 --> P2
+    V --> P3 --> CLEAN
+    V --> P4
+    CLEAN --> S1
+    P2 --> S1
+    P1 --> S1
+    S1 --> S2 --> S3 --> S4 --> S5
+    S1 --> D3
+    CLEAN --> D1 --> D2 --> D3
+    D3 --> D4 --> D5
+    S3 --> D5
+    D5 --> O1
+    D2 --> O1
+    O1 --> O2
+    O1 --> O3
+    O2 --> O4
+    O1 --> O4
+
+    style S5 stroke-dasharray: 5 5
+    style S2 stroke-width:2px

@@ -1,0 +1,64 @@
+%% GritSense - data flow between artifacts on disk
+flowchart LR
+    VID["data/sample3.mp4"]
+    ANN["data/annotations.json<br/>319 x 4 corners"]
+    W1["weights/player_detection.pt"]
+    W2["weights/pose.pt"]
+    W3["weights/ball.pt"]
+    PNG["data/court.png"]
+
+    PJ["data/player_keypoints_mf3_pose.json<br/>3.6 MB"]
+    BC["data/ball.csv"]
+    PREV["docs/demo/master_detection_preview.mp4"]
+    CAND["data/ball_candidates.json"]
+    CLEAN["data/ball_clean.csv<br/>+ Source column"]
+
+    GR["output_recent/graphs/<br/>graph_frame_XXXX.pt"]
+    DIM["output_recent/dimensions/<br/>frame_XXXX.npz"]
+    SEQ["output_recent/temporal/<br/>hrn_global_sequences.npy/.pt"]
+    TPRED["output_recent/temporal/<br/>temporal_predictions.csv"]
+    GA["output_recent/group_activity/<br/>group_activity.json"]
+    CK1["checkpoints/gat.pt<br/>checkpoints/hrn.pt"]
+    CK2["pretrained_checkpoints/<br/>checkpoint_epoch_42.pkl"]
+
+    DASH["output_recent/dashboard/<br/>gritsense_dashboard.mp4"]
+    INS["dashboard_insights.json"]
+    COM["commentary.txt"]
+    SNAP["dashboard_XXXX.png"]
+
+    VID --> PJ
+    VID --> BC
+    VID --> PREV
+    ANN --> PREV
+    PNG --> PREV
+    W1 --> PJ
+    W2 --> PJ
+    W3 --> BC
+
+    VID --> CAND
+    W3 --> CAND
+    CAND --> CLEAN
+
+    PJ --> GR
+    CLEAN --> GR
+    ANN --> GR
+    CK1 --> GR
+    GR --> DIM
+    GR --> SEQ
+    SEQ --> TPRED
+
+    VID --> GA
+    PJ --> GA
+    CK2 --> GA
+
+    PJ --> DASH
+    CLEAN --> DASH
+    ANN --> DASH
+    CK1 --> DASH
+    GA --> DASH
+    DASH --> INS
+    DASH --> COM
+    DASH --> SNAP
+
+    style TPRED stroke-dasharray: 5 5
+    style CK1 stroke-dasharray: 5 5

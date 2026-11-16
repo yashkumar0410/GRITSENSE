@@ -3,266 +3,966 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>GRITSENSE Analytics</title>
+  <title>GritSense — Volleyball Intelligence</title>
+  <meta name="description" content="GritSense turns fixed-camera volleyball footage into court geometry, player relationships, expected possession value and tactical commentary — frame by frame, locally.">
+  <meta name="theme-color" content="#07090e">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/app.css">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a0e16'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%232de2be' stroke-width='2.5'/%3E%3Cpath d='M7 16h18M16 7c4 3 4 15 0 18' fill='none' stroke='%232de2be' stroke-width='2'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%233355ff'/%3E%3Cpath d='M6 25V7h20M6 16h13M12 7v18' fill='none' stroke='%23f2f0e9' stroke-width='1.8'/%3E%3Ccircle cx='25' cy='25' r='2.6' fill='%23f2f0e9'/%3E%3C/svg%3E">
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="#/">
-      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
-        <rect width="32" height="32" rx="9" />
-        <circle cx="16" cy="16" r="9" />
-        <path d="M7 16h18M16 7c4 3 4 15 0 18" />
-      </svg>
-      <span class="brand-name">GRITSENSE</span>
-      <span class="brand-sub">Tactical Intelligence</span>
-    </a>
-    <nav class="topnav">
-      <a href="#/" data-nav="home">New analysis</a>
-      <a href="#/runs" data-nav="runs">Runs <span class="pill" id="runs-count">0</span></a>
-    </nav>
-    <div class="sys" id="sys">
-      <span class="chip"><span class="dot"></span>Connecting…</span>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-head" id="site-head">
+    <div class="head-inner">
+      <a class="brand" href="#/" aria-label="GritSense home">
+        <svg class="brand-mark" viewBox="0 0 34 34" aria-hidden="true">
+          <rect x="1" y="1" width="32" height="32" fill="none"/>
+          <path d="M4 28V6h26M4 17h17M13 6v22" fill="none"/>
+          <circle cx="27.5" cy="27.5" r="2.6"/>
+        </svg>
+        <span class="brand-word">GRITSENSE</span>
+      </a>
+      <nav class="head-nav" id="head-nav" aria-label="Primary">
+        <a href="#/" data-scroll="platform" data-nav="platform">Platform</a>
+        <a href="#/" data-scroll="capabilities" data-nav="capabilities">Capabilities</a>
+        <a href="#/" data-scroll="method" data-nav="method">Method</a>
+        <a href="#/runs" data-nav="runs">Archive</a>
+        <a class="sheet-cta" href="#/analyze">
+          <span>Analyze a match</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 3.5 13 8l-4.5 4.5"/></svg>
+        </a>
+      </nav>
+      <div class="head-actions">
+        <div class="sys-chip" id="sys-status" title="Local compute status">
+          <span class="dot"></span><span>Checking system</span>
+        </div>
+        <a class="btn btn-primary btn-sm head-cta" href="#/analyze" aria-label="Start a new analysis">
+          <span>New analysis</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 3.5 13 8l-4.5 4.5"/></svg>
+        </a>
+        <button class="menu-btn" id="menu-btn" type="button" aria-label="Open menu" aria-expanded="false">
+          <span></span><span></span>
+        </button>
+      </div>
     </div>
   </header>
 
-  <main id="app">
-    <!-- HOME ---------------------------------------------------------------->
-    <section class="view" id="view-home" hidden>
-      <div class="hero">
-        <div>
-          <p class="eyebrow">Volleyball match analysis</p>
-          <h1>Turn match footage into <span class="grad">tactical decisions</span>.</h1>
-          <p class="lede">Upload a rally. GRITSENSE tracks every player and the ball, scores each spot on the court for point chance, and recommends the play, with live commentary written by an offline language model.</p>
+  <main id="main">
+    <!-- ================================================================ -->
+    <!-- LANDING                                                          -->
+    <!-- ================================================================ -->
+    <section class="view view-landing" id="view-landing" hidden>
+      <section class="hero">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow"><span class="rule"></span>Volleyball intelligence · local-first</p>
+            <h1 class="hero-title">
+              <span class="line">THE GAME</span>
+              <span class="line">BEHIND THE</span>
+              <span class="line accent">GAME.</span>
+            </h1>
+            <p class="hero-lede">GritSense reads fixed-camera volleyball footage and returns the structure underneath it: tracked players and ball, calibrated court space, graph-based matchups, expected possession value and a running tactical read.</p>
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="#/analyze">
+                <span>Analyze a match</span>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 3.5 13 8l-4.5 4.5"/></svg>
+              </a>
+              <a class="btn btn-line" href="#/" data-scroll="platform">See the platform <span class="arrow">↓</span></a>
+            </div>
+            <div class="hero-facts">
+              <div><span class="mono-label">Pipeline</span><b>Detect · track · graph · score</b></div>
+              <div><span class="mono-label">Compute</span><b id="hero-compute">Local GPU or CPU</b></div>
+              <div><span class="mono-label">Commentary</span><b>Offline LLM or templates</b></div>
+            </div>
+          </div>
+
+          <figure class="hero-media" aria-label="Real sample rally frame with court geometry projected from the project's annotations">
+            <img src="/static/assets/hero-match.jpg" alt="Volleyball rally from the bundled sample match, with court boundary and attack lines projected from the project's court calibration.">
+            <span class="frame-corner tl"></span><span class="frame-corner tr"></span>
+            <span class="frame-corner bl"></span><span class="frame-corner br"></span>
+            <div class="media-chrome top">
+              <span>Match feed / BRA–JPN</span>
+              <span class="chrome-right">Sample rally · frame 0240</span>
+            </div>
+            <div class="media-chrome bottom">
+              <span>Court 18.0 × 9.0 m</span>
+              <span class="chrome-right">Homography · 4 corners</span>
+            </div>
+            <div class="media-tag"><span class="tag-line"></span>Calibrated court space</div>
+          </figure>
         </div>
-        <ol class="pipeline">
-          <li><span class="pi">01</span><div><b>Detect &amp; track</b><small>Players, pose, ball (YOLO)</small></div></li>
-          <li><span class="pi">02</span><div><b>Court geometry</b><small>Homography to metres</small></div></li>
-          <li><span class="pi">03</span><div><b>Graph models</b><small>GAT matchups · HRN shape</small></div></li>
-          <li><span class="pi">04</span><div><b>EPV &amp; commentary</b><small>Physics + offline LLM</small></div></li>
-        </ol>
+
+        <div class="hero-foot">
+          <a class="scroll-cue" href="#/" data-scroll="platform"><span class="cue-line"></span>Scroll to inspect the system</a>
+          <div class="hero-index">01 / 06</div>
+        </div>
+      </section>
+
+      <div class="signal-strip" aria-hidden="true">
+        <div class="signal-track">
+          <span>Player &amp; ball detection</span><i>◆</i>
+          <span>Pose keypoints</span><i>◆</i>
+          <span>Court homography</span><i>◆</i>
+          <span>GAT matchups</span><i>◆</i>
+          <span>HRN team shape</span><i>◆</i>
+          <span>Expected possession value</span><i>◆</i>
+          <span>Tactical commentary</span><i>◆</i>
+          <span>Player &amp; ball detection</span><i>◆</i>
+          <span>Pose keypoints</span><i>◆</i>
+          <span>Court homography</span><i>◆</i>
+          <span>GAT matchups</span><i>◆</i>
+          <span>HRN team shape</span><i>◆</i>
+          <span>Expected possession value</span><i>◆</i>
+          <span>Tactical commentary</span><i>◆</i>
+        </div>
       </div>
 
-      <div class="grid-home">
-        <form class="card setup" id="setup-form" autocomplete="off">
-          <div class="card-head">
-            <h2>New analysis</h2>
-            <div class="seg" role="tablist" id="mode-seg">
-              <button type="button" role="tab" data-mode="full" class="on">Upload video</button>
-              <button type="button" role="tab" data-mode="demo">Use sample match</button>
+      <!-- Platform / showcase -->
+      <section class="section section-showcase" id="platform">
+        <div class="wrap">
+          <div class="section-head split-head">
+            <div>
+              <p class="eyebrow"><span class="rule"></span>02 / The workbench</p>
+              <h2 class="display">ONE SURFACE.<br>EVERY READ.</h2>
+            </div>
+            <div class="head-aside">
+              <p>Video, court state, point chance and commentary share one clock. Scrub the rally and the analysis moves with it.</p>
+              <a class="text-link" href="#/runs">Open the archive <span>↗</span></a>
             </div>
           </div>
 
-          <!-- step 1: video -->
-          <div class="step" data-show="full">
-            <div class="step-label"><span class="num">1</span>Match video</div>
-            <label class="drop" id="drop">
-              <input type="file" id="video-input" accept="video/*" hidden>
-              <div class="drop-empty">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-                <b>Drop a video here or <u>browse</u></b>
-                <small>MP4 / MOV / AVI · fixed broadcast camera works best · 1080p recommended</small>
+          <div class="showcase" id="showcase">
+            <div class="showcase-screen">
+              <div class="screen-bar">
+                <span class="screen-dot"></span>
+                <span id="showcase-title">Latest analysis</span>
+                <span class="screen-sep">/</span>
+                <span id="showcase-mode">—</span>
+                <span class="screen-live"><i></i> Rendered output</span>
               </div>
-              <div class="drop-file" hidden>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg>
-                <div><b id="file-name"></b><small id="file-meta"></small></div>
-                <button type="button" class="link" id="file-clear">Change</button>
+              <div class="screen-media" id="showcase-media">
+                <div class="media-placeholder" id="showcase-empty">
+                  <span class="mono-label">No completed analysis yet</span>
+                  <p>Run the bundled sample or a match video and the most recent rendered dashboard will appear here.</p>
+                  <a class="btn btn-line btn-sm" href="#/analyze">Start the sample <span>→</span></a>
+                </div>
+                <video id="showcase-video" muted loop playsinline preload="metadata" hidden></video>
               </div>
-            </label>
-          </div>
+              <div class="screen-foot">
+                <span class="screen-foot-teams" id="showcase-teams">—</span>
+                <span class="screen-foot-meta"><span id="showcase-frames">—</span><i>/</i><span id="showcase-fps">—</span></span>
+                <span class="screen-foot-clock" id="showcase-timecode">00:00.0</span>
+              </div>
+              </div>
 
-          <div class="step" data-show="demo" hidden>
-            <div class="sample">
-              <video src="/sample.mp4" muted loop playsinline autoplay preload="metadata"></video>
-              <div>
-                <b>Sample rally · BRA vs JPN</b>
-                <small>Uses the detections and court calibration bundled with the project, so only the dashboard is rendered. Takes a few minutes.</small>
+            <aside class="showcase-rail">
+              <div class="rail-kicker"><span>Latest run</span><span class="mono-label" id="showcase-date">—</span></div>
+              <div class="rail-stats" id="showcase-stats">
+                <div><span>Frames analysed</span><b>—</b></div>
+                <div><span>Attack chances</span><b>—</b></div>
+                <div><span>Peak point chance</span><b>—</b></div>
               </div>
+              <div class="rail-block">
+                <div class="rail-label">Target zones <span>Share of calls</span></div>
+                <div class="mini-court" id="showcase-court"></div>
+              </div>
+              <div class="rail-block">
+                <div class="rail-label">Latest commentary</div>
+                <div class="rail-commentary" id="showcase-commentary">
+                  <p class="muted">Select a completed run to read its commentary.</p>
+                </div>
+              </div>
+              <a class="showcase-link" id="showcase-open" href="#/runs">
+                <span>Open full analysis</span><span class="arrow">↗</span>
+              </a>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <!-- Capabilities -->
+      <section class="section section-capabilities" id="capabilities">
+        <div class="wrap">
+          <div class="section-head split-head">
+            <div>
+              <p class="eyebrow"><span class="rule"></span>03 / Capabilities</p>
+              <h2 class="display">WHAT THE<br>SYSTEM SEES.</h2>
+            </div>
+            <div class="head-aside">
+              <p>Five connected layers, each computed from the footage and the calibrated court — not from hand-entered statistics.</p>
             </div>
           </div>
 
-          <!-- step 2: settings -->
-          <div class="step">
-            <div class="step-label"><span class="num" id="settings-num">2</span>Settings</div>
-            <div class="settings">
-              <div class="field">
-                <label for="title">Title</label>
-                <input id="title" placeholder="e.g. Set 2 · rally 14" maxlength="80">
+          <div class="cap-list">
+            <article class="cap-row">
+              <div class="cap-index">01</div>
+              <div class="cap-copy">
+                <p class="cap-kicker">Perception</p>
+                <h3>Player &amp; ball intelligence</h3>
+                <p>Detection and tracking identify players, their pose keypoints and the ball across the rally. A dedicated cleanup pass stabilises the ball track before it is used downstream.</p>
+                <ul class="spec-list">
+                  <li><span>Players</span><b>YOLO detection + tracking</b></li>
+                  <li><span>Pose</span><b>17 keypoints per player</b></li>
+                  <li><span>Ball</span><b>Re-detection + trajectory cleanup</b></li>
+                </ul>
               </div>
-              <div class="field teams">
-                <label>Teams <small>left half · right half</small></label>
-                <div class="row gap8">
-                  <div class="team-in"><span class="sw t0"></span><input id="team-left" value="BRA" maxlength="4"></div>
-                  <span class="vs">vs</span>
-                  <div class="team-in"><span class="sw t1"></span><input id="team-right" value="JPN" maxlength="4"></div>
+              <div class="cap-visual" aria-hidden="true">
+                <svg class="diagram" viewBox="0 0 460 300">
+                  <defs><pattern id="grid-a" width="23" height="23" patternUnits="userSpaceOnUse"><path d="M23 0H0V23" fill="none" stroke="currentColor" stroke-opacity=".12"/></pattern></defs>
+                  <rect width="460" height="300" fill="url(#grid-a)"/>
+                  <path class="d-line" d="M42 232 122 96h276l-34 136Z"/>
+                  <path class="d-faint" d="M42 232h322M122 96v0M159 232l33-136M364 96l-34 136"/>
+                  <path class="d-accent" d="M205 128v92M420 96v136"/>
+                  <g class="d-team0">
+                    <rect x="150" y="158" width="46" height="76"/><path d="M173 158v-16m-12 30 12-8 13 8m-25 16 12 10 13-10m-13-8v30m0 0-10 18m10-18 11 18"/>
+                  </g>
+                  <g class="d-team1">
+                    <rect x="284" y="150" width="46" height="80"/><path d="M307 150v-16m-12 30 12-8 13 8m-25 16 12 10 13-10m-13-8v32m0 0-10 18m10-18 11 18"/>
+                  </g>
+                  <g class="d-ball"><circle cx="353" cy="120" r="5"/><path d="M353 125c-8 14-20 20-32 18"/></g>
+                  <g class="d-label"><text x="150" y="248">#05 · POSE</text><text x="284" y="246">#02 · POSE</text><text x="360" y="110">BALL</text></g>
+                  <path class="d-corner" d="M26 54V26h28M406 26h28v28M434 246v28h-28M54 274H26v-28"/>
+                </svg>
+              </div>
+            </article>
+
+            <article class="cap-row">
+              <div class="cap-index">02</div>
+              <div class="cap-copy">
+                <p class="cap-kicker">Space</p>
+                <h3>Spatial court understanding</h3>
+                <p>Four annotated court corners establish a homography for the fixed camera. Every tracked position is projected into metres, so gaps, zones and movement can be measured instead of guessed.</p>
+                <ul class="spec-list">
+                  <li><span>Court</span><b>18.0 × 9.0 m</b></li>
+                  <li><span>Mapping</span><b>Per-frame homography</b></li>
+                  <li><span>Output</span><b>Metric player coordinates</b></li>
+                </ul>
+              </div>
+              <div class="cap-visual" aria-hidden="true">
+                <svg class="diagram" viewBox="0 0 460 300">
+                  <defs><pattern id="grid-b" width="18" height="18" patternUnits="userSpaceOnUse"><path d="M18 0H0V18" fill="none" stroke="currentColor" stroke-opacity=".1"/></pattern></defs>
+                  <rect width="460" height="300" fill="url(#grid-b)"/>
+                  <path class="d-line" d="M52 236 118 78h284l-42 158Z"/>
+                  <path class="d-faint" d="M85 157h270M101 118h244M136 236l34-158M330 78l-34 158M52 236l66-158"/>
+                  <path class="d-accent" d="M241 78 221 236"/>
+                  <path class="d-dash" d="M52 260h335M52 254v12M387 254v12"/>
+                  <g class="d-label"><text x="198" y="278">18.0 M</text><text x="398" y="76">NET</text><text x="118" y="68">FAR CORNERS</text></g>
+                  <g class="d-corner-dot"><circle cx="118" cy="78" r="5"/><circle cx="402" cy="78" r="5"/><circle cx="360" cy="236" r="5"/><circle cx="52" cy="236" r="5"/></g>
+                  <g class="d-label"><text x="126" y="72">01</text><text x="410" y="72">02</text><text x="368" y="230">03</text><text x="60" y="230">04</text></g>
+                  <path class="d-corner" d="M26 54V26h28M406 26h28v28M434 246v28h-28M54 274H26v-28"/>
+                </svg>
+              </div>
+            </article>
+
+            <article class="cap-row">
+              <div class="cap-index">03</div>
+              <div class="cap-copy">
+                <p class="cap-kicker">Relationships</p>
+                <h3>Graph-based tactical structure</h3>
+                <p>Player positions and pose become graph nodes. A graph attention network scores attacker–defender matchups, while an HRN branch reads the team's shape and coverage as one connected unit.</p>
+                <ul class="spec-list">
+                  <li><span>Matchups</span><b>GAT over player graphs</b></li>
+                  <li><span>Shape</span><b>HRN coverage + balance</b></li>
+                  <li><span>Activity</span><b>Pretrained group-activity GAT</b></li>
+                </ul>
+              </div>
+              <div class="cap-visual" aria-hidden="true">
+                <svg class="diagram" viewBox="0 0 460 300">
+                  <defs><pattern id="grid-c" width="23" height="23" patternUnits="userSpaceOnUse"><path d="M23 0H0V23" fill="none" stroke="currentColor" stroke-opacity=".1"/></pattern></defs>
+                  <rect width="460" height="300" fill="url(#grid-c)"/>
+                  <path class="d-accent" d="M230 48v204"/>
+                  <g class="d-net"><path d="M230 66v168" class="d-dash"/></g>
+                  <g class="d-edges">
+                    <path d="M92 176 148 118M148 118l62 42M148 118l22 94M210 160l-40 52M148 118l-56-8M92 176l62 42M154 212l56-52M210 160l76-74M286 86l64 30M286 86l-14 106M272 192l78-76M350 116l-14 106M336 222l-50 34M286 86l50 136"/>
+                  </g>
+                  <g class="d-node"><circle cx="92" cy="176" r="7"/><circle cx="148" cy="118" r="7"/><circle cx="210" cy="160" r="7"/><circle cx="154" cy="212" r="7"/><circle cx="286" cy="86" r="7"/><circle cx="350" cy="116" r="7"/><circle cx="272" cy="192" r="7"/><circle cx="336" cy="222" r="7"/></g>
+                  <g class="d-node d-team0"><circle cx="92" cy="176" r="13"/><circle cx="148" cy="118" r="13"/><circle cx="210" cy="160" r="13"/><circle cx="154" cy="212" r="13"/></g>
+                  <g class="d-node d-team1"><circle cx="286" cy="86" r="13"/><circle cx="350" cy="116" r="13"/><circle cx="272" cy="192" r="13"/><circle cx="336" cy="222" r="13"/></g>
+                  <g class="d-label"><text x="210" y="40">GAT / HRN</text><text x="76" y="210">LEFT BLOCK</text><text x="308" y="258">RIGHT SHAPE</text></g>
+                  <path class="d-corner" d="M26 54V26h28M406 26h28v28M434 246v28h-28M54 274H26v-28"/>
+                </svg>
+              </div>
+            </article>
+
+            <article class="cap-row">
+              <div class="cap-index">04</div>
+              <div class="cap-copy">
+                <p class="cap-kicker">Value</p>
+                <h3>Expected possession value</h3>
+                <p>A physics-calibrated EPV scores the current attack: point chance, block risk, the available gap and the recommended target. The same numbers drive the on-court target call and the rendered dashboard.</p>
+                <ul class="spec-list">
+                  <li><span>Model</span><b>Physics calibrated</b></li>
+                  <li><span>Reads</span><b>Point chance · block risk · gap</b></li>
+                  <li><span>Call</span><b>Recommended play + target zone</b></li>
+                </ul>
+              </div>
+              <div class="cap-visual" aria-hidden="true">
+                <svg class="diagram" viewBox="0 0 460 300">
+                  <defs>
+                    <pattern id="grid-d" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="currentColor" stroke-opacity=".1"/></pattern>
+                  </defs>
+                  <rect width="460" height="300" fill="url(#grid-d)"/>
+                  <path class="d-line" d="M66 238h328V84H66Z"/>
+                  <path class="d-faint" d="M66 135h328M175 84v154M285 84v154"/>
+                  <path class="d-accent" d="M66 84h328"/>
+                  <path class="d-dash" d="M120 228c54-12 62-96 118-104 46-7 74 42 108 32"/>
+                  <g class="d-arrow"><path d="M350 152l-8 5 3-9Z"/></g>
+                  <path class="d-dash" d="M288 124 337 92M288 124l64 4"/>
+                  <g class="d-zone"><rect x="286" y="84" width="108" height="51"/></g>
+                  <g class="d-label"><text x="292" y="80">TARGET / ZONE 2</text><text x="72" y="78">NET</text><text x="100" y="268">EPV = f(path, block, gap)</text></g>
+                  <circle class="d-origin" cx="120" cy="228" r="5"/>
+                  <g class="d-corner" ></g>
+                  <path class="d-corner" d="M26 54V26h28M406 26h28v28M434 246v28h-28M54 274H26v-28"/>
+                </svg>
+              </div>
+            </article>
+
+            <article class="cap-row">
+              <div class="cap-index">05</div>
+              <div class="cap-copy">
+                <p class="cap-kicker">Language</p>
+                <h3>AI tactical commentary</h3>
+                <p>Each possession produces a time-stamped read. An offline language model writes the call when available; a deterministic template path keeps commentary working without one.</p>
+                <ul class="spec-list">
+                  <li><span>Engine</span><b>Offline LLM or templates</b></li>
+                  <li><span>Sync</span><b>Time-stamped to the rally</b></li>
+                  <li><span>Output</span><b>Move · possession · insight</b></li>
+                </ul>
+              </div>
+              <div class="cap-visual" aria-hidden="true">
+                <svg class="diagram" viewBox="0 0 460 300">
+                  <defs><pattern id="grid-e" width="23" height="23" patternUnits="userSpaceOnUse"><path d="M23 0H0V23" fill="none" stroke="currentColor" stroke-opacity=".1"/></pattern></defs>
+                  <rect width="460" height="300" fill="url(#grid-e)"/>
+                  <path class="d-line" d="M52 232h356"/>
+                  <path class="d-accent" d="M52 232h84M158 232h92M284 232h124"/>
+                  <g class="d-label"><text x="52" y="252">00:00</text><text x="216" y="252">00:04</text><text x="368" y="252">00:08</text></g>
+                  <g class="d-feed">
+                    <rect x="52" y="62" width="252" height="40"/><rect x="52" y="112" width="318" height="40"/><rect x="52" y="162" width="220" height="40"/>
+                    <path class="d-faint" d="M64 76h168M64 86h92M64 126h226M64 136h140M64 176h132M64 186h80"/>
+                  </g>
+                  <g class="d-playhead"><path d="M230 46v190"/><circle cx="230" cy="232" r="5"/></g>
+                  <g class="d-label"><text x="342" y="86">MOVE</text><text x="382" y="136">POSS.</text><text x="286" y="186">INSIGHT</text></g>
+                  <path class="d-corner" d="M26 54V26h28M406 26h28v28M434 246v28h-28M54 274H26v-28"/>
+                </svg>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Vantage -->
+      <section class="section section-vantage" id="vantage">
+        <div class="wrap">
+          <p class="eyebrow"><span class="rule"></span>04 / A different vantage point</p>
+          <div class="vantage-head">
+            <h2 class="display">THE COURT IS<br>A <span class="accent">COORDINATE<br>SYSTEM.</span></h2>
+            <p>Volleyball already has a geometry: six zones, a net, an attack line, three metres of separation. GritSense treats those structures as data — then layers perception, relationships and value on top.</p>
+          </div>
+
+          <div class="vantage-grid">
+            <article class="vantage-col">
+              <div class="vantage-num">01 <span>Spatial intelligence</span></div>
+              <div class="vantage-art">
+                <svg class="diagram" viewBox="0 0 360 300">
+                  <defs><pattern id="v-grid-a" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="currentColor" stroke-opacity=".12"/></pattern></defs>
+                  <rect width="360" height="300" fill="url(#v-grid-a)"/>
+                  <path class="d-line" d="M70 248h220V82H70Z"/>
+                  <path class="d-accent" d="M70 82h220"/>
+                  <path class="d-faint" d="M70 165h220M143 82v166M217 82v166"/>
+                  <g class="d-label"><text x="88" y="190">5</text><text x="161" y="190">6</text><text x="235" y="190">1</text><text x="88" y="120">4</text><text x="161" y="120">3</text><text x="235" y="120">2</text></g>
+                  <g class="d-node d-team0"><circle cx="112" cy="208" r="12"/><circle cx="178" cy="132" r="12"/><circle cx="242" cy="200" r="12"/></g>
+                  <g class="d-node d-team1"><circle cx="128" cy="138" r="12"/><circle cx="206" cy="222" r="12"/><circle cx="252" cy="126" r="12"/></g>
+                  <g class="d-dash"><path d="M70 270h220M70 264v12M290 264v12"/></g>
+                  <g class="d-label"><text x="158" y="288">18.0 M</text><text x="300" y="84">NET</text></g>
+                  <path class="d-corner" d="M36 58V30h28M316 30h28v28M344 262v28h-28M64 290H36v-28"/>
+                </svg>
+              </div>
+              <h3>Metres, not pixels.</h3>
+              <p>Court corners are projected into a homography, turning image positions into zone coordinates and measurable distances.</p>
+            </article>
+
+            <article class="vantage-col">
+              <div class="vantage-num">02 <span>Tactical relationships</span></div>
+              <div class="vantage-art">
+                <svg class="diagram" viewBox="0 0 360 300">
+                  <defs><pattern id="v-grid-b" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="currentColor" stroke-opacity=".12"/></pattern></defs>
+                  <rect width="360" height="300" fill="url(#v-grid-b)"/>
+                  <path class="d-accent" d="M180 52v196"/>
+                  <g class="d-edges">
+                    <path d="M76 170 132 108M132 108l54 44M132 108l18 98M186 152l-36 54M76 170l62 36M150 206l36-54M222 104l58 30M222 104l-8 102M214 206l66-72M280 134l-8 102M272 236l-44 24"/>
+                  </g>
+                  <g class="d-node"><circle cx="76" cy="170" r="6"/><circle cx="132" cy="108" r="6"/><circle cx="186" cy="152" r="6"/><circle cx="150" cy="206" r="6"/><circle cx="222" cy="104" r="6"/><circle cx="280" cy="134" r="6"/><circle cx="214" cy="206" r="6"/><circle cx="272" cy="236" r="6"/></g>
+                  <g class="d-node d-team0"><circle cx="76" cy="170" r="11"/><circle cx="132" cy="108" r="11"/><circle cx="186" cy="152" r="11"/><circle cx="150" cy="206" r="11"/></g>
+                  <g class="d-node d-team1"><circle cx="222" cy="104" r="11"/><circle cx="280" cy="134" r="11"/><circle cx="214" cy="206" r="11"/><circle cx="272" cy="236" r="11"/></g>
+                  <g class="d-label"><text x="196" y="44">EDGE / MATCHUP</text><text x="60" y="240">ATTACK</text><text x="286" y="278">DEFENCE</text></g>
+                  <path class="d-corner" d="M36 58V30h28M316 30h28v28M344 262v28h-28M64 290H36v-28"/>
+                </svg>
+              </div>
+              <h3>Structure over noise.</h3>
+              <p>Graph attention reads relationships between players, not isolated boxes — who is blocking whom, and where the shape is stretched.</p>
+            </article>
+
+            <article class="vantage-col">
+              <div class="vantage-num">03 <span>Possession intelligence</span></div>
+              <div class="vantage-art">
+                <svg class="diagram" viewBox="0 0 360 300">
+                  <defs><pattern id="v-grid-c" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="currentColor" stroke-opacity=".12"/></pattern></defs>
+                  <rect width="360" height="300" fill="url(#v-grid-c)"/>
+                  <path class="d-line" d="M62 246h236V76H62Z"/>
+                  <path class="d-accent" d="M62 76h236"/>
+                  <path class="d-faint" d="M62 150h236M141 76v170M219 76v170"/>
+                  <path class="d-dash" d="M96 236c44-8 44-92 88-104 42-11 70 24 96 12"/>
+                  <g class="d-arrow"><path d="M280 144l-9 6 4-10Z"/><path d="M176 158l10-5-3 10Z"/></g>
+                  <g class="d-zone"><rect x="219" y="76" width="79" height="74"/></g>
+                  <circle class="d-origin" cx="96" cy="236" r="5"/>
+                  <g class="d-label"><text x="226" y="70">TARGET</text><text x="74" y="70">NET</text><text x="88" y="274">TOUCH</text><text x="240" y="274">TARGET</text></g>
+                  <path class="d-corner" d="M36 58V30h28M316 30h28v28M344 262v28h-28M64 290H36v-28"/>
+                </svg>
+              </div>
+              <h3>Value is a direction.</h3>
+              <p>EPV combines the path, block risk and available gap into a point-chance read and a concrete target call.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Method -->
+      <section class="section section-method" id="method">
+        <div class="wrap">
+          <div class="section-head split-head">
+            <div>
+              <p class="eyebrow"><span class="rule"></span>05 / From footage to read</p>
+              <h2 class="display">FIVE STAGES.<br>ONE RALLY.</h2>
+            </div>
+            <div class="head-aside">
+              <p>The actual processing order. Each stage writes its output for the next; the dashboard is rendered only after the graph models and EPV are complete.</p>
+            </div>
+          </div>
+
+          <ol class="flow">
+            <li>
+              <span class="flow-num">01</span>
+              <div class="flow-mark"><span></span></div>
+              <h3>Prepare</h3>
+              <p>Uploaded footage is normalised to 1920 × 1080. Audio is dropped; only the frames are analysed.</p>
+              <span class="flow-tag">FFmpeg · OpenCV</span>
+            </li>
+            <li>
+              <span class="flow-num">02</span>
+              <div class="flow-mark"><span></span></div>
+              <h3>Detect &amp; track</h3>
+              <p>Players, pose keypoints and the ball are detected frame by frame and linked into tracks.</p>
+              <span class="flow-tag">YOLO · pose</span>
+            </li>
+            <li>
+              <span class="flow-num">03</span>
+              <div class="flow-mark"><span></span></div>
+              <h3>Clean the ball</h3>
+              <p>The ball track is re-detected and cleaned so flight paths do not carry false positives forward.</p>
+              <span class="flow-tag">Ball re-detection</span>
+            </li>
+            <li>
+              <span class="flow-num">04</span>
+              <div class="flow-mark"><span></span></div>
+              <h3>Graph &amp; score</h3>
+              <p>Court coordinates feed GAT matchups, HRN team shape and group activity; physics scores each attack.</p>
+              <span class="flow-tag">GAT · HRN · EPV</span>
+            </li>
+            <li>
+              <span class="flow-num">05</span>
+              <div class="flow-mark"><span></span></div>
+              <h3>Render the read</h3>
+              <p>Commentary is written, the dashboard is composited and the result is encoded for the browser.</p>
+              <span class="flow-tag">Commentary · encode</span>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- Engineering -->
+      <section class="section section-engineering">
+        <div class="wrap">
+          <div class="eng-head">
+            <p class="eyebrow"><span class="rule"></span>06 / Research &amp; engineering</p>
+            <h2 class="display">BUILT AS A<br>LOCAL SYSTEM.</h2>
+          </div>
+          <div class="eng-grid">
+            <article>
+              <span class="eng-label">01 / Compute</span>
+              <h3>Your hardware, your footage.</h3>
+              <p>Deployment can select Intel Arc XPU, NVIDIA CUDA or CPU. The same pipeline runs locally; match video is not sent to a hosted inference service.</p>
+              <div class="eng-spec"><span>DEVICE</span><b id="eng-device">NVIDIA RTX (CUDA)</b></div>
+            </article>
+            <article>
+              <span class="eng-label">02 / Calibration</span>
+              <h3>One fixed camera is enough.</h3>
+              <p>Court corners from the project's annotation file give each frame a homography. Frames without their own corners reuse the last calibrated one.</p>
+              <div class="eng-spec"><span>SPACE</span><b>18 × 9 m · four corners</b></div>
+            </article>
+            <article>
+              <span class="eng-label">03 / Language</span>
+              <h3>Commentary with a fallback.</h3>
+              <p>When the offline model and its cache are available, it writes the read. Otherwise, the deterministic template engine produces the same time-stamped structure.</p>
+              <div class="eng-spec"><span>MODE</span><b id="eng-engine">Offline LLM / template</b></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Archive preview -->
+      <section class="section section-archive-preview" id="archive-preview" hidden>
+        <div class="wrap">
+          <div class="section-head split-head">
+            <div>
+              <p class="eyebrow"><span class="rule"></span>Recent runs</p>
+              <h2 class="display">FROM THE<br>ARCHIVE.</h2>
+            </div>
+            <div class="head-aside"><a class="text-link" href="#/runs">All analyses <span>↗</span></a></div>
+          </div>
+          <div class="archive-preview-list" id="landing-runs"></div>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="cta">
+        <svg class="cta-court" viewBox="0 0 1440 520" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <path d="M-40 460 340 60h760l340 400Z" fill="none"/>
+          <path d="M720 60v400M340 60l60 400M1100 60l-60 400M-40 460h1520M180 260h1080"/>
+          <circle cx="720" cy="260" r="6"/>
+        </svg>
+        <div class="wrap cta-inner">
+          <p class="eyebrow light"><span class="rule"></span>Start a run</p>
+          <h2 class="display">PUT THE MATCH<br>UNDER THE LENS.</h2>
+          <div class="cta-foot">
+            <p>Bring a fixed-camera rally. Leave with a court-calibrated, frame-by-frame tactical read.</p>
+            <a class="btn btn-paper" href="#/analyze"><span>Analyze a match</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 3.5 13 8l-4.5 4.5"/></svg></a>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ================================================================ -->
+    <!-- ANALYZE                                                          -->
+    <!-- ================================================================ -->
+    <section class="view view-analyze" id="view-analyze" hidden>
+      <div class="page-pad">
+        <header class="workspace-head">
+          <div class="workspace-top">
+            <a class="back-link" href="#/">← Overview</a>
+            <span class="mono-label">Intake / new run</span>
+          </div>
+          <div class="workspace-title">
+            <div>
+              <h1 class="display">NEW ANALYSIS.</h1>
+              <p class="workspace-lede">Feed the pipeline a fixed-camera rally. Detection, court calibration, graph models and commentary run as one job.</p>
+            </div>
+            <ol class="intake-steps" aria-label="Intake steps">
+              <li class="on"><span>01</span>Footage</li>
+              <li><span>02</span>Identity</li>
+              <li><span>03</span>Configuration</li>
+            </ol>
+          </div>
+        </header>
+
+        <form class="intake" id="setup-form" autocomplete="off">
+          <div class="intake-main">
+            <div class="mode-switch" id="mode-seg" role="tablist" aria-label="Source">
+              <button type="button" role="tab" data-mode="full" class="on">Upload footage</button>
+              <button type="button" role="tab" data-mode="demo">Use bundled sample</button>
+              <span class="mode-note">One run at a time</span>
+            </div>
+
+            <div class="step" data-show="full">
+              <div class="step-head">
+                <span class="step-index">01</span>
+                <div><h2>Match footage</h2><p>A fixed broadcast camera works best. Footage is scaled to 1920 × 1080 before analysis.</p></div>
+                <span class="step-state" id="source-state">No file</span>
+              </div>
+              <label class="drop" id="drop">
+                <input type="file" id="video-input" accept="video/*" hidden>
+                <div class="drop-empty">
+                  <span class="drop-mark" aria-hidden="true">
+                    <svg viewBox="0 0 48 48"><path d="M24 33V9m0 0-8 8m8-8 8 8M9 32v5a2 2 0 0 0 2 2h26a2 2 0 0 0 2-2v-5"/></svg>
+                  </span>
+                  <b>Drop a match video here</b>
+                  <span>or <u>browse files</u> · MP4, MOV, AVI, MKV</span>
+                  <small>Fixed camera · 1080p recommended</small>
+                </div>
+                <div class="drop-file" hidden>
+                  <span class="file-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="2.5" y="5.5" width="19" height="13"/><path d="m10 9 5 3-5 3z"/></svg></span>
+                  <span class="file-text"><b id="file-name"></b><small id="file-meta"></small></span>
+                  <button type="button" class="text-link" id="file-clear">Replace</button>
+                </div>
+              </label>
+              <div class="source-preview" id="source-preview" hidden>
+                <video id="preview-video" muted playsinline controls preload="metadata"></video>
+                <div class="source-preview-meta">
+                  <div><span class="mono-label">Source</span><b id="preview-name">—</b></div>
+                  <div><span class="mono-label">Frame</span><b id="preview-res">—</b></div>
+                  <div><span class="mono-label">Duration</span><b id="preview-dur">—</b></div>
+                  <div><span class="mono-label">Destination</span><b>1920 × 1080</b></div>
                 </div>
               </div>
-              <div class="field">
-                <label for="device">Compute device</label>
-                <select id="device">
-                  <option value="auto" selected>Automatic (prefer Intel Arc, then NVIDIA)</option>
-                  <option value="cpu">CPU</option>
-                  <option value="cuda">NVIDIA CUDA</option>
-                  <option value="xpu">Intel Arc GPU (XPU)</option>
-                </select>
+            </div>
+
+            <div class="step" data-show="demo" hidden>
+              <div class="step-head">
+                <span class="step-index">01</span>
+                <div><h2>Bundled sample</h2><p>Runs the dashboard from the sample's existing detections. No new detection pass is required.</p></div>
+                <span class="step-state">Sample</span>
               </div>
-              <div class="field">
-                <label>Commentary</label>
-                <div class="seg small" id="nlp-seg">
-                  <button type="button" data-nlp="local" class="on">Offline LLM</button>
-                  <button type="button" data-nlp="template">Templates</button>
+              <div class="sample-panel">
+                <video src="/sample.mp4" muted loop playsinline autoplay preload="metadata"></video>
+                <div class="sample-copy">
+                  <span class="mono-label">Sample rally / BRA–JPN</span>
+                  <p>The bundled sample ships with player detections, ball tracks and court calibration. The pipeline renders the tactical dashboard and commentary from those artifacts.</p>
+                  <div class="sample-tags"><span>319 frames</span><span>30 fps</span><span>1920 × 1080</span></div>
                 </div>
               </div>
-              <div class="field">
-                <label>Length</label>
-                <div class="row gap8">
-                  <div class="seg small" id="len-seg">
+            </div>
+
+            <div class="step">
+              <div class="step-head">
+                <span class="step-index">02</span>
+                <div><h2>Match identity</h2><p>Names travel with the run, the dashboard title and every commentary line.</p></div>
+              </div>
+              <div class="fields-grid">
+                <div class="field span-2">
+                  <label for="title">Analysis title <small>optional</small></label>
+                  <input id="title" placeholder="Set 2 · rally 14" maxlength="80">
+                </div>
+                <div class="field">
+                  <label>Left-side team <small>4 characters</small></label>
+                  <div class="team-input"><span class="team-swatch t0"></span><input id="team-left" value="BRA" maxlength="4" aria-label="Left-side team"></div>
+                </div>
+                <div class="field">
+                  <label>Right-side team <small>4 characters</small></label>
+                  <div class="team-input"><span class="team-swatch t1"></span><input id="team-right" value="JPN" maxlength="4" aria-label="Right-side team"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="step">
+              <div class="step-head">
+                <span class="step-index">03</span>
+                <div><h2>Run configuration</h2><p>Compute and commentary are chosen per run. The pipeline order stays the same.</p></div>
+              </div>
+              <div class="config-grid">
+                <div class="field">
+                  <label for="device">Compute device</label>
+                  <select id="device">
+                    <option value="cuda" selected id="opt-cuda">NVIDIA RTX (CUDA)</option>
+                    <option value="cpu" id="opt-cpu">CPU mode</option>
+                    <option value="xpu" id="opt-xpu">Intel Arc GPU (XPU)</option>
+                    <option value="auto" id="opt-auto">Automatic</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Commentary engine</label>
+                  <div class="seg" id="nlp-seg">
+                    <button type="button" data-nlp="local" class="on">Offline LLM</button>
+                    <button type="button" data-nlp="template">Templates</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Length</label>
+                  <div class="seg" id="len-seg">
                     <button type="button" data-len="full" class="on">Whole video</button>
                     <button type="button" data-len="preview">Preview</button>
                   </div>
-                  <div class="frames-in" id="frames-wrap" hidden><input id="max-frames" type="number" min="30" value="150"><span>frames</span></div>
+                </div>
+                <div class="field frames-field" id="frames-wrap" hidden>
+                  <label for="max-frames">Preview frames</label>
+                  <div class="frames-input"><input id="max-frames" type="number" min="30" step="10" value="150"><span>frames</span></div>
                 </div>
               </div>
+              <p class="config-note" id="config-note">The full pipeline runs detection, ball cleanup, graph models, EPV and the rendered dashboard.</p>
             </div>
           </div>
 
-          <div class="submit-row">
-            <p class="muted small" id="submit-hint">Choose a video to begin.</p>
-            <button class="btn primary" id="start-btn" disabled>
-              <span>Run analysis</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
-            </button>
-          </div>
+          <aside class="intake-rail">
+            <div class="rail-sticky">
+              <div class="rail-head"><span class="mono-label">Run summary</span><span class="status-dot">Ready</span></div>
+              <dl class="summary-list">
+                <div><dt>Source</dt><dd id="sum-source">No footage selected</dd></div>
+                <div><dt>Mode</dt><dd id="sum-mode">Full pipeline</dd></div>
+                <div><dt>Teams</dt><dd id="sum-teams">BRA vs JPN</dd></div>
+                <div><dt>Device</dt><dd id="sum-device">NVIDIA RTX (CUDA)</dd></div>
+                <div><dt>Commentary</dt><dd id="sum-commentary">Offline LLM</dd></div>
+              </dl>
+              <div class="rail-block">
+                <div class="rail-label">Stages <span>Actual order</span></div>
+                <ol class="mini-flow" id="mini-flow">
+                  <li>Prepare</li><li>Detect &amp; track</li><li>Ball track</li><li>Graph models</li><li>Render dashboard</li>
+                </ol>
+              </div>
+              <div class="rail-submit">
+                <p id="submit-hint">Choose a video to begin.</p>
+                <button class="btn btn-primary btn-block" id="start-btn" type="submit" disabled>
+                  <span>Run analysis</span>
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 3.5 13 8l-4.5 4.5"/></svg>
+                </button>
+                <span class="rail-footnote">Jobs run one at a time. A new job waits for the active run to finish.</span>
+              </div>
+            </div>
+          </aside>
         </form>
-
-        <aside class="card recent">
-          <div class="card-head"><h2>Recent runs</h2><a href="#/runs" class="link">View all</a></div>
-          <ul class="run-list" id="recent-list"></ul>
-        </aside>
       </div>
     </section>
 
-    <!-- RUNS ---------------------------------------------------------------->
-    <section class="view" id="view-runs" hidden>
-      <div class="page-head"><h1>Runs</h1><a class="btn primary sm" href="#/">New analysis</a></div>
-      <div class="card"><ul class="run-list big" id="all-runs"></ul></div>
-    </section>
-
-    <!-- JOB (processing + results) ----------------------------------------->
-    <section class="view" id="view-job" hidden>
-      <div class="page-head job-head">
-        <div>
-          <a href="#/runs" class="crumb">← Runs</a>
-          <h1 id="job-title">—</h1>
-          <div class="meta" id="job-meta"></div>
-        </div>
-        <div class="row gap8" id="job-actions"></div>
-      </div>
-
-      <!-- processing -->
-      <div id="proc" hidden>
-        <div class="card proc">
-          <div class="proc-top">
-            <div class="ring" id="ring">
-              <svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="52"/><circle class="fg" id="ring-fg" cx="60" cy="60" r="52"/></svg>
-              <div class="ring-val"><b id="pct">0</b><span>%</span></div>
+    <!-- ================================================================ -->
+    <!-- RUNS                                                             -->
+    <!-- ================================================================ -->
+    <section class="view view-runs" id="view-runs" hidden>
+      <div class="page-pad">
+        <header class="workspace-head archive-head">
+          <div class="workspace-top">
+            <a class="back-link" href="#/">← Overview</a>
+            <span class="mono-label">Archive / all runs</span>
+          </div>
+          <div class="workspace-title">
+            <div>
+              <h1 class="display">MATCH<br>ARCHIVE.</h1>
+              <p class="workspace-lede">Every analysis on this machine, with its teams, configuration and rendered output.</p>
             </div>
-            <div class="proc-info">
+            <div class="archive-summary" id="archive-summary"></div>
+          </div>
+        </header>
+
+        <div class="archive-toolbar">
+          <div class="filters" id="archive-filters">
+            <button type="button" data-filter="all" class="on">All <span id="count-all">0</span></button>
+            <button type="button" data-filter="done">Complete <span id="count-done">0</span></button>
+            <button type="button" data-filter="running">Active <span id="count-running">0</span></button>
+            <button type="button" data-filter="failed">Failed <span id="count-failed">0</span></button>
+          </div>
+          <div class="archive-actions">
+            <button type="button" class="btn btn-line btn-sm" id="btn-clear-archive" title="Clear all finished and failed runs from archive">
+              <span>Clear archive</span>
+            </button>
+            <a class="btn btn-primary btn-sm" href="#/analyze"><span>New analysis</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 3.5 13 8l-4.5 4.5"/></svg></a>
+          </div>
+        </div>
+
+        <div class="archive-table-head" aria-hidden="true">
+          <span>Index</span><span>Match</span><span>Mode</span><span>Footage</span><span>Created</span><span>Status</span><span></span>
+        </div>
+        <div class="archive-list" id="archive-list"></div>
+        <div class="archive-empty" id="archive-empty" hidden>
+          <span class="mono-label">No runs in this view</span>
+          <p>Start with the bundled sample to see the full results workspace.</p>
+          <a class="btn btn-line" href="#/analyze">Open intake <span>→</span></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ -->
+    <!-- JOB                                                              -->
+    <!-- ================================================================ -->
+    <section class="view view-job" id="view-job" hidden>
+      <div class="page-pad">
+        <header class="workspace-head job-head">
+          <div class="workspace-top">
+            <a class="back-link" href="#/runs">← Archive</a>
+            <span class="mono-label" id="job-crumb">Run</span>
+          </div>
+          <div class="job-title-row">
+            <div class="job-title-wrap">
+              <h1 class="job-title" id="job-title">Loading…</h1>
+              <div class="job-meta" id="job-meta"></div>
+            </div>
+            <div class="job-actions" id="job-actions"></div>
+          </div>
+        </header>
+
+        <!-- Processing -->
+        <div class="proc" id="proc" hidden>
+          <div class="proc-top">
+            <div class="proc-copy">
               <p class="eyebrow" id="proc-status">Queued</p>
               <h2 id="proc-stage">Waiting to start</h2>
-              <p class="muted" id="proc-times">—</p>
-              <ol class="stepper" id="stepper"></ol>
+              <p class="proc-times" id="proc-times">—</p>
             </div>
+            <div class="proc-percent"><b id="pct">0</b><span>%</span></div>
           </div>
-          <details class="console" open>
-            <summary>Live log</summary>
+          <div class="progress-track"><span id="progress-fill"></span></div>
+          <ol class="stage-list" id="stepper"></ol>
+          <div class="console">
+            <div class="console-head"><span>Live process log</span><span class="mono-label" id="log-count">0 lines</span></div>
             <pre id="log"></pre>
-          </details>
+          </div>
         </div>
-      </div>
 
-      <!-- failed -->
-      <div id="failed" hidden>
-        <div class="card error-card">
-          <h2>Analysis failed</h2>
-          <p id="err-msg"></p>
-          <details class="console" open><summary>Log</summary><pre id="err-log"></pre></details>
+        <!-- Failed -->
+        <div class="fail" id="failed" hidden>
+          <div class="fail-head">
+            <span class="mono-label">Run failed</span>
+            <h2>Analysis stopped.</h2>
+            <p id="err-msg"></p>
+          </div>
+          <div class="console"><div class="console-head"><span>Log</span></div><pre id="err-log"></pre></div>
         </div>
-      </div>
 
-      <!-- results -->
-      <div id="results" hidden>
-        <div class="stats" id="stats"></div>
+        <!-- Results -->
+        <div class="results" id="results" hidden>
+          <div class="stat-band" id="stats"></div>
 
-        <div class="grid-results">
-          <div class="card player-card">
-            <div class="player">
-              <video id="player" controls playsinline preload="auto"></video>
-            </div>
-            <div class="chart-wrap">
-              <div class="chart-head">
-                <div>
-                  <h3>Point chance over the rally</h3>
-                  <small class="muted">Chance the recommended target wins the point outright · shown during attack chances (shaded) · click to seek</small>
-                </div>
-                <button class="link small" id="table-toggle" type="button">Show table</button>
+          <div class="workbench">
+            <div class="wb-left">
+              <div class="video-shell">
+                <video id="player" controls playsinline preload="auto"></video>
+                <div class="video-badge"><span class="live-dot"></span>Rendered dashboard</div>
+                <div class="video-time" id="video-time">00:00.0</div>
               </div>
-              <div class="chart" id="chart"></div>
-              <div class="table-wrap" id="table-wrap" hidden></div>
+              <div class="chart-section">
+                <div class="chart-head">
+                  <div>
+                    <span class="mono-label">Point chance over the rally</span>
+                    <p>Chance the recommended target wins the point outright. Shaded bands mark attack chances. Click to seek.</p>
+                  </div>
+                  <button class="text-link" id="table-toggle" type="button">Frame table</button>
+                </div>
+                <div class="chart" id="chart"></div>
+                <div class="table-wrap" id="table-wrap" hidden></div>
+              </div>
+            </div>
+
+            <aside class="wb-right">
+              <div class="readout-head">
+                <span class="mono-label">Live tactical read</span>
+                <span class="readout-clock" id="readout-clock">00:00.0</span>
+              </div>
+              <div class="readout" id="readout"></div>
+              <div class="court-panel">
+                <div class="panel-label"><span>Target zone map</span><span id="court-now">—</span></div>
+                <div class="court-map" id="zone-map"></div>
+              </div>
+              <div class="shape-panel" id="shape"></div>
+            </aside>
+          </div>
+
+          <!-- TACTICAL BREAKDOWNS (Recommended plays, Key defenders, Target zones) -->
+          <div class="grid-3">
+            <div class="card">
+              <div class="card-head">
+                <h3>Recommended plays</h3>
+                <small class="muted">share of attack-chance time</small>
+              </div>
+              <div class="bars" id="moves"></div>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <h3>Key defenders</h3>
+                <small class="muted">avg share of threat removed</small>
+              </div>
+              <div class="bars" id="defenders"></div>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <h3>Target zones</h3>
+                <small class="muted">where the model said to hit</small>
+              </div>
+              <div class="zones" id="zones"></div>
             </div>
           </div>
 
-          <div class="card feed-card">
+          <!-- PRETRAINED GROUP-ACTIVITY GAT: RALLY PHASES -->
+          <div class="card" id="rally-card">
             <div class="card-head">
-              <h2><span class="live"></span>Live commentary</h2>
-              <span class="muted small" id="engine-tag"></span>
+              <div>
+                <h3>Rally phases</h3>
+                <small class="muted">Pretrained group-activity GAT · one block per 9-frame window · click to seek</small>
+              </div>
+              <div class="ga-now" id="ga-now"></div>
             </div>
-            <ul class="feed" id="feed"></ul>
+            <div class="rally" id="rally"></div>
+            <div class="rally-legend" id="rally-legend"></div>
+            <div class="rally-teams" id="rally-teams"></div>
           </div>
-        </div>
 
-        <div class="grid-3">
-          <div class="card">
-            <div class="card-head"><h3>Recommended plays</h3><small class="muted">share of attack-chance time</small></div>
-            <div class="bars" id="moves"></div>
-          </div>
-          <div class="card">
-            <div class="card-head"><h3>Key defenders</h3><small class="muted">avg share of threat removed</small></div>
-            <div class="bars" id="defenders"></div>
-          </div>
-          <div class="card">
-            <div class="card-head"><h3>Target zones</h3><small class="muted">where the model said to hit</small></div>
-            <div class="zones" id="zones"></div>
-          </div>
-        </div>
-
-        <div class="card" id="rally-card" hidden>
-          <div class="card-head">
-            <div>
-              <h3>Rally phases</h3>
-              <small class="muted">Pretrained group-activity GAT · one block per 9-frame window · click to seek</small>
+          <!-- SNAPSHOTS -->
+          <div class="card" id="snaps-card">
+            <div class="card-head">
+              <h3>Snapshots</h3>
             </div>
-            <div class="ga-now" id="ga-now"></div>
+            <div class="snaps" id="snaps"></div>
           </div>
-          <div class="rally" id="rally"></div>
-          <div class="rally-legend" id="rally-legend"></div>
-          <div class="rally-teams" id="rally-teams"></div>
-        </div>
 
-        <div class="card" id="snaps-card">
-          <div class="card-head"><h3>Snapshots</h3></div>
-          <div class="snaps" id="snaps"></div>
+          <!-- COMMENTARY FEED & FRAME TABLE -->
+          <div class="intel">
+            <div class="tabs" id="intel-tabs" role="tablist" aria-label="Analysis detail">
+              <button type="button" data-tab="commentary" class="on" role="tab" aria-selected="true">Commentary <span id="commentary-count">0</span></button>
+              <button type="button" data-tab="frames" role="tab" aria-selected="false">Frame data</button>
+            </div>
+            <div class="tab-panels">
+              <div class="tab-panel" role="tabpanel" data-panel="commentary">
+                <div class="panel-bar">
+                  <div class="panel-title"><span class="live-dot"></span>Broadcast read <small id="engine-tag"></small></div>
+                  <div class="feed-filters" id="feed-filters">
+                    <button type="button" data-kind="all" class="on">All</button>
+                    <button type="button" data-kind="move">Moves</button>
+                    <button type="button" data-kind="possession">Possession</button>
+                    <button type="button" data-kind="insight">Insight</button>
+                  </div>
+                </div>
+                <ul class="feed" id="feed"></ul>
+              </div>
+
+              <div class="tab-panel" role="tabpanel" data-panel="frames" hidden>
+                <div class="panel-bar"><div class="panel-title">Frame data</div><span class="mono-label" id="frame-count">Sampled rows</span></div>
+                <div class="table-wrap frame-table" id="frame-table"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
   </main>
 
-  <div class="lightbox" id="lightbox" hidden><img alt=""><button class="lb-close" aria-label="Close">×</button></div>
-  <div class="toast" id="toast" hidden></div>
+  <footer class="site-foot" id="site-foot">
+    <div class="wrap">
+      <div class="foot-top">
+        <a class="brand foot-brand" href="#/">
+          <svg class="brand-mark" viewBox="0 0 34 34" aria-hidden="true"><path d="M4 28V6h26M4 17h17M13 6v22" fill="none"/><circle cx="27.5" cy="27.5" r="2.6"/></svg>
+          <span class="brand-word">GRITSENSE</span>
+        </a>
+        <p class="foot-statement">Volleyball intelligence, computed from the footage.<br>Detection · court geometry · graph models · EPV · commentary.</p>
+        <div class="foot-status" id="foot-status"><span class="dot"></span><span>Checking local system…</span></div>
+      </div>
+      <div class="foot-grid">
+        <div>
+          <span class="mono-label">Product</span>
+          <a href="#/analyze">New analysis</a>
+          <a href="#/runs">Match archive</a>
+          <a href="#/" data-scroll="platform">The workbench</a>
+        </div>
+        <div>
+          <span class="mono-label">System</span>
+          <a href="#/" data-scroll="capabilities">Capabilities</a>
+          <a href="#/" data-scroll="method">Processing order</a>
+          <a href="#/" data-scroll="vantage">Vantage point</a>
+        </div>
+        <div>
+          <span class="mono-label">Runs locally</span>
+          <p>Built with PyTorch, YOLO, GAT, HRN and OpenCV. No hosted match analysis.</p>
+        </div>
+        <div class="foot-colophon">
+          <span class="mono-label">GritSense</span>
+          <p>Volleyball tactical intelligence.<br><span id="foot-year"></span> · Local build</p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <div class="lightbox" id="lightbox" hidden>
+    <button class="lightbox-close" type="button" aria-label="Close">Close ×</button>
+    <img alt="Enlarged dashboard snapshot">
+  </div>
+  <div class="toast" id="toast" hidden role="status" aria-live="polite"></div>
+  <noscript><p class="noscript">GritSense needs JavaScript to run analyses and display results.</p></noscript>
 
   <script src="/static/app.js"></script>
 </body>

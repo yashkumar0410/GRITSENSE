@@ -9,7 +9,9 @@ templates are kept as the fallback when no backend is available.
 
 from __future__ import annotations
 
+import queue
 import random
+import threading
 from dataclasses import dataclass
 
 from pipeline_profiling import measure
@@ -64,6 +66,14 @@ class CommentaryGenerator:
         self._last_emit = -10_000
         self._last_template: dict[str, int] = {}
         self._pending_move = False
+        # Deferred mode: plan() decides and appends the line at once, a worker
+        # fills in the LLM text while the caller keeps processing frames. With
+        # plan(..., defer=True) the text is written later by finish() instead,
+        # in the caller's thread, so generation never competes for the GPU.
+        self._requests: queue.Queue = queue.Queue()
+        self._worker: threading.Thread | None = None
+        self._worker_lock = threading.Lock()
+        self._deferred: list[tuple[int, str, FrameInsight, dict, str, CommentaryLine]] = []
 
     def _pick(self, kind: str, templates: list[str]) -> str:
         # Never repeat the same template twice in a row for a given kind.
@@ -127,10 +137,12 @@ class CommentaryGenerator:
             },
         }
 
-    def _generate(self, kind: str, ins: FrameInsight, slots: dict) -> str | None:
+    def _generate(self, kind: str, ins: FrameInsight, slots: dict,
+                  recent: list[str] | None = None) -> str | None:
         if self.backend is None:
             return None
-        recent = [line.text for line in self.history[-3:]]
+        if recent is None:
+            recent = [line.text for line in self.history[-3:] if line.text]
         facts = self._facts(ins, slots)
         try:
             with measure("commentary.llm_generation"):
@@ -142,8 +154,13 @@ class CommentaryGenerator:
             self.backend = None
             return None
 
-    def update(self, ins: FrameInsight) -> CommentaryLine | None:
-        """Emit a new line when something worth saying happens; otherwise None."""
+    def _decide(self, ins: FrameInsight) -> tuple[str, str, dict] | None:
+        """Pick the event to speak about now: (kind, template, slots) or None.
+
+        Advances the same generator state (pending move, template rotation and
+        RNG stream) that the synchronous path used, so deferred generation makes
+        the same decisions in the same order.
+        """
         if ins.attack_team is None:
             return None
         since = ins.frame - self._last_emit
@@ -172,6 +189,14 @@ class CommentaryGenerator:
             slots.update(a=top.attacker, b=top.defender, w=top.share)
         else:
             slots.update(a="?", b="?", w=0.0)
+        return kind, template, slots
+
+    def update(self, ins: FrameInsight) -> CommentaryLine | None:
+        """Emit a new line when something worth saying happens; otherwise None."""
+        decision = self._decide(ins)
+        if decision is None:
+            return None
+        kind, template, slots = decision
 
         engine = self.source
         text = self._generate(kind, ins, slots)
@@ -181,3 +206,77 @@ class CommentaryGenerator:
         self.history.append(line)
         self._last_emit = ins.frame
         return line
+
+    def plan(self, ins: FrameInsight, defer: bool = False) -> CommentaryLine | None:
+        """Like update(), but the LLM text is produced later.
+
+        The line is appended (with empty text) at the event frame so the
+        generator state and history order match the synchronous path; call
+        finish() before reading the text. With ``defer=True`` no worker is
+        started: finish() writes the text in the caller's thread, in emission
+        order, once the caller is done with its own GPU work.
+        """
+        decision = self._decide(ins)
+        if decision is None:
+            return None
+        kind, template, slots = decision
+
+        line = CommentaryLine(ins.frame, self._timestamp(ins.frame), "", kind, self.source)
+        self.history.append(line)
+        self._last_emit = ins.frame
+        if self.backend is None:
+            line.text = template.format(**slots)
+            line.source = "TEMPLATE"
+        elif defer:
+            self._deferred.append((len(self.history) - 1, kind, ins, slots, template, line))
+        else:
+            self._ensure_worker()
+            self._requests.put((kind, ins, slots, template, line))
+        return line
+
+    def _ensure_worker(self) -> None:
+        with self._worker_lock:
+            if self._worker is None:
+                self._worker = threading.Thread(target=self._work, name="commentary-llm", daemon=True)
+                self._worker.start()
+
+    def _work(self) -> None:
+        while True:
+            request = self._requests.get()
+            try:
+                if request is None:
+                    return
+                kind, ins, slots, template, line = request
+                text = self._generate(kind, ins, slots)
+                if text:
+                    line.text = text
+                else:
+                    line.text = template.format(**slots)
+                    line.source = "TEMPLATE"
+            finally:
+                self._requests.task_done()
+
+    def _write_deferred(self) -> None:
+        """Write the deferred lines in order, in this thread (no GPU contention)."""
+        pending, self._deferred = self._deferred, []
+        for index, kind, ins, slots, template, line in pending:
+            # The same "recent lines" the synchronous path sees: the lines
+            # emitted before this one, never the ones still waiting for text.
+            recent = [l.text for l in self.history[max(0, index - 3):index] if l.text]
+            text = self._generate(kind, ins, slots, recent=recent)
+            if text:
+                line.text = text
+            else:
+                line.text = template.format(**slots)
+                line.source = "TEMPLATE"
+
+    def finish(self) -> None:
+        """Write every planned line, then wait for the worker (idempotent)."""
+        self._write_deferred()
+        with self._worker_lock:
+            worker = self._worker
+            if worker is None:
+                return
+            self._requests.put(None)
+            self._worker = None
+        worker.join()

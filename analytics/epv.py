@@ -35,6 +35,7 @@ Positions are court metres from the homography (net at x = 9).
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 
 import numpy as np
@@ -324,9 +325,17 @@ class PhysicsSurface:
 
 
 class PhysicsEPV:
+    # Contact geometry and the (defender-independent) flight tables are reused
+    # across the surface, the teammate options and the leave-one-out matchups of
+    # one insight step.  Keyed by (contact, defending side); bounded per instance.
+    GEOMETRY_CACHE_SIZE = 64
+
     def __init__(self, resolution: float = 0.25):
         self.local = np.arange(resolution / 2.0, 9.0, resolution)
         self.ys = np.arange(resolution / 2.0, COURT_WIDTH, resolution)
+        self._geometry_cache: dict = {}
+        self._geometry_lock = threading.RLock()
+        self.stats = {"surfaces": 0, "value_surfaces": 0, "loo_surfaces": 0}
 
     @staticmethod
     def available_shots(contact: tuple[float, float], attack_side: int) -> list[Shot]:
@@ -355,13 +364,19 @@ class PhysicsEPV:
         ok = np.isfinite(best_T)
         return np.where(ok, best_T, np.nan), best_z, ok
 
-    def surface(self, contact: tuple[float, float], defenders, defend_side: int,
-                shot_prior: dict[str, float] | None = None, prior_weight: float = 0.0,
-                time_to_hit: float | None = None) -> PhysicsSurface:
-        """EPV surface. With shot_prior (e.g. the HRN's shot probabilities), each shot's
-        EPV is re-weighted by (1 - w + w * n * p), where p is the prior renormalised over
-        the n available shots: a uniform prior leaves the physics ranking unchanged.
-        The pure physics EPV of the chosen shot is kept in layers["physics_epv"]."""
+    def _geometry(self, contact: tuple[float, float], defend_side: int) -> dict:
+        """Everything the EPV needs that depends only on the contact point and side.
+
+        The target grid, ball flight per shot and landing probability do not
+        change when defenders are added or removed, so the leave-one-out
+        matchups and the prior-weighted surface reuse one shared computation.
+        """
+        key = (float(contact[0]), float(contact[1]), int(defend_side))
+        with self._geometry_lock:
+            cached = self._geometry_cache.get(key)
+            if cached is not None:
+                return cached
+
         x0 = 0.0 if defend_side == 0 else NET_X
         xs = x0 + self.local
         X, Y = np.meshgrid(xs, self.ys)
@@ -377,6 +392,101 @@ class PhysicsEPV:
         y_net = by + along * (Y - by)
         far_line = 0.0 if defend_side == 0 else COURT_LENGTH
         depth_margin = np.abs(far_line - X)
+
+        flight = {}
+        p_in = {}
+        for shot in shots:
+            flight[shot.name] = self._flight(shot, dist, net_dist)
+            sd = shot.aim_sd
+            p_in[shot.name] = _phi(Y / sd) * _phi((COURT_WIDTH - Y) / sd) * _phi(depth_margin / sd)
+
+        geometry = {
+            "xs": xs, "X": X, "Y": Y, "y_net": y_net,
+            "shots": shots, "flight": flight, "p_in": p_in,
+        }
+        with self._geometry_lock:
+            if len(self._geometry_cache) >= self.GEOMETRY_CACHE_SIZE:
+                self._geometry_cache.pop(next(iter(self._geometry_cache)))
+            self._geometry_cache[key] = geometry
+        return geometry
+
+    def _best_values(self, geometry: dict, reach_t: np.ndarray, defenders, contact,
+                     defend_side: int, time_to_hit: float | None) -> np.ndarray:
+        """Best-shot EPV values for one defender set, without the display layers."""
+        X = geometry["X"]
+        y_net = geometry["y_net"]
+
+        if time_to_hit is None:
+            blockers = [d for d in defenders if abs(d.x - NET_X) <= DIVE_REACH]
+        else:
+            blockers = blockers_at_hit(defenders, contact, defend_side, time_to_hit)
+
+        best = np.full(X.shape, -1.0)
+        for shot in geometry["shots"]:
+            flight, z_net, feasible = geometry["flight"][shot.name]
+            flight_safe = np.where(feasible, flight, 0.0)
+            p_reach = _sigmoid((flight_safe[None] - reach_t) / CONTROL_SIGMA)
+            p_unreached = np.prod(1.0 - p_reach, axis=0)
+            p_block = np.zeros(X.shape)
+            if blockers and shot.blockable:
+                keep = np.ones(X.shape)
+                z_safe = np.where(feasible, z_net, 0.0)
+                for b in blockers:
+                    below_hands = _phi((hand_height(b) - (z_safe - BALL_R)) / BLOCK_HEIGHT_SD)
+                    within = np.exp(-((y_net - b.y) ** 2) / (2 * BLOCK_HALFWIDTH ** 2))
+                    keep *= 1.0 - below_hands * within
+                p_block = 1.0 - keep
+            epv = np.where(feasible, geometry["p_in"][shot.name] * (1.0 - p_block) * p_unreached, 0.0)
+            best = np.where(epv > best, epv, best)
+        return np.maximum(best, 0.0)
+
+    def surface_values(self, contact: tuple[float, float], defenders, defend_side: int,
+                       time_to_hit: float | None = None) -> np.ndarray:
+        """Best-shot EPV values only (teammate options), sharing the cached geometry."""
+        geometry = self._geometry(contact, defend_side)
+        reach_t = reach_times(defenders, geometry["X"], geometry["Y"])
+        return self._best_values(geometry, reach_t, defenders, contact, defend_side, time_to_hit)
+
+    def leave_one_out_values(self, contact: tuple[float, float], defenders, defend_side: int,
+                             time_to_hit: float | None = None) -> list[np.ndarray]:
+        """Best-shot EPV values with each defender removed, in defender order.
+
+        ``key_matchups`` only needs the surface values (threat = mean of the top
+        cells), so the shared geometry and flight work is reused and the block
+        layers that the displayed surface needs are skipped.  The arithmetic is
+        the same as calling ``surface`` on the reduced defender list.
+        """
+        if not defenders:
+            return []
+
+        geometry = self._geometry(contact, defend_side)
+        X, Y = geometry["X"], geometry["Y"]
+        reach_t = reach_times(defenders, X, Y)
+        keep = np.arange(len(defenders))
+
+        out = []
+        for i in range(len(defenders)):
+            others = list(defenders[:i]) + list(defenders[i + 1:])
+            # An empty defender list still uses reach_times' 9 s placeholder row,
+            # as surface() does, so keep that for identical results.
+            reach = reach_t[keep != i] if others else reach_times([], X, Y)
+            out.append(self._best_values(geometry, reach, others, contact, defend_side, time_to_hit))
+        return out
+
+    def surface(self, contact: tuple[float, float], defenders, defend_side: int,
+                shot_prior: dict[str, float] | None = None, prior_weight: float = 0.0,
+                time_to_hit: float | None = None) -> PhysicsSurface:
+        """EPV surface. With shot_prior (e.g. the HRN's shot probabilities), each shot's
+        EPV is re-weighted by (1 - w + w * n * p), where p is the prior renormalised over
+        the n available shots: a uniform prior leaves the physics ranking unchanged.
+        The pure physics EPV of the chosen shot is kept in layers["physics_epv"]."""
+        geometry = self._geometry(contact, defend_side)
+        xs, X, Y = geometry["xs"], geometry["X"], geometry["Y"]
+        y_net = geometry["y_net"]
+        shots = geometry["shots"]
+        flights = geometry["flight"]
+        p_in_by_shot = geometry["p_in"]
+        bx, by = contact
 
         reach_t = reach_times(defenders, X, Y)                    # [n_def, ny, nx]
         defender_t = reach_t.min(axis=0)
@@ -401,12 +511,11 @@ class PhysicsEPV:
                            for s in shots}
 
         for idx, shot in enumerate(shots):
-            flight, z_net, feasible = self._flight(shot, dist, net_dist)
+            flight, z_net, feasible = flights[shot.name]
             flight_safe = np.where(feasible, flight, 0.0)
             p_reach = _sigmoid((flight_safe[None] - reach_t) / CONTROL_SIGMA)
             p_unreached = np.prod(1.0 - p_reach, axis=0)
-            sd = shot.aim_sd
-            p_in = _phi(Y / sd) * _phi((COURT_WIDTH - Y) / sd) * _phi(depth_margin / sd)
+            p_in = p_in_by_shot[shot.name]
 
             p_block = np.zeros(X.shape)
             if blockers and shot.blockable:

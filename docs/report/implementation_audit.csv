@@ -1,0 +1,32 @@
+Feature,Planned functionality,Actual implementation,Relevant files,Status,Remarks
+Video input,Read match video,"cv2.VideoCapture, fps fallback 30",master_main.py,Completed,mp4v preview not browser-playable; web app transcodes
+Player detection,YOLO detection of players,"Ultralytics YOLO player_detection.pt (classes ball/player), conf 0.4",master_main.py,Completed,No class filter - ball-class boxes can enter as players
+Multi-object tracking,Persistent player IDs,BoT-SORT via model.track(persist=True),master_main.py,Completed,IDs not shirt numbers; 3 IDs hard-excluded
+Ball detection,Dedicated ball detector,"ball.pt in-loop + multi-scale re-detection (640,1280)","pipeline/ball_tracker.py, pipeline/redetect_ball.py",Completed,Docs claim three sizes incl. 1920; code uses two
+Ball path cleaning,Reject false positives and fill gaps,"Static-object rejection + speed gate + DP path + quadratic fill",analytics/ball_track.py,Completed,317/319 frames with ball (author-reported)
+Pose estimation,BlazePose,"YOLOv8-pose, 17 COCO keypoints","master_main.py, weights/pose.pt",Completed (substituted),BlazePose not used; 27-46% pose coverage observed
+Pose-to-track association,Match poses to players,Composite IoU/coverage/proximity score threshold 0.18,master_main.py,Completed,Better than IoU-only for tight pose boxes
+Court keypoint detection,Automatic court keypoint detection,None - four corners hand-annotated for 319 frames,data/annotations.json,Not implemented,Listed as a Phase 2 pipeline stage
+Homography,Image to court metres,findHomography per frame to 18x9 m,pipeline/tactical_dashboard.py,Completed,Manual corners reused for every uploaded video
+Camera recovery,Not planned in Phase 2,Global focal fit (2500 px) + per-frame (R t),analytics/camera.py,Completed,Validated: centre std <= 1.29 m; stature median 1.92 m
+Speed calculation,Player speed,"Least-squares velocity over 0.2 s in m/s; JSON speed field always 0.0","analytics/motion.py, master_main.py",Partially implemented,Metric velocity computed downstream not exported
+Jump and reach measurement,Not planned,Box-lift + camera height measurement,analytics/pose_signals.py,Completed,81 jumps; 90th pct 0.70 m; max reach 3.19 m
+Graph construction,Players + ball nodes with pose/position/ball features,49-D nodes and 4-D edges,pipeline/graph_builder.py,Completed,Works in image space not court metres
+GAT,Learn relational importance,"2-layer GAT, 4 heads, residual, edge_dim=4",models/gat.py,Completed,Trained self-supervised; loses to no-movement baseline
+HRN,Player/team/scene hierarchy,GAT + team mean-pool + global projection + heads,"models/hrn.py, analytics/learned.py",Completed,Trained by distillation; zero measured skill
+GAT/HRN training,Train without manual labels,"Self-supervised + distillation, block split, reports",pipeline/train_gat_hrn.py,Completed,236 s on one clip; overfits immediately
+Temporal feature extraction,Positions poses ball spatial and HRN features,Only 32-D HRN global embedding,pipeline/integrate_and_rebuild.py,Partially implemented,FeaturePreparer exists but never called
+GRU model,Temporal classifier,GRUTemporalModel + TemporalTrainer,temporal/gru_model.py,Experimental,No training script; no checkpoint; never produced output
+Transformer baseline,Compare with GRU,TransformerTemporalModel,temporal/gru_model.py,Experimental,Positional encoding degenerates; no comparison run
+Rally segmentation,Segment rallies and build state-action-outcome tuples,Phase state machine only,analytics/insights.py,Partially implemented,No rally boundary or outcome label
+Game-state representation,Positions poses ball court relational,Frame graph + 32-D embedding + possession/phase,"graph_builder.py, insights.py",Completed,Sufficient for implemented analytics
+EPV,Expected possession value,"1,296 cells x 5 shots, drag flight, block, defender race, aim error","analytics/epv.py, analytics/constants.py",Completed,Not learned; validated only by aggregate bracket
+Activity recognition,8 group activities,External pretrained RCRG checkpoint over 9-frame windows,pipeline/group_activity.py,Completed earlier / broken now,GAT folder deleted; paths resolve inside pipeline/
+Action forecasting,Predict future group activity,0.5 s per-player displacement only,"analytics/learned.py, models/gat.py",Partially implemented,No future-activity prediction exists
+Tactical recommendation,Recommend where and how to hit,Best-shot surface zone move set-to choice debouncing,analytics/insights.py,Completed,Strongest delivered feature
+Commentary,Natural-language analysis,Rule-triggered LLM with template fallback and fact checks,"analytics/commentary.py, analytics/nlp.py",Completed,Guard checks zone/player not semantics
+Dashboard,Visual analytics,1920x1080 composed video + insights JSON + snapshots,pipeline/tactical_dashboard.py,Completed,CPU-bound rendering
+Web application,Upload run inspect,"Flask queue subprocess ffmpeg transcode insights API","webapp/server.py, webapp/static",Completed,Dev server; no auth; single-job concurrency
+Real-time operation,Real-time inference,Offline whole-clip batch,master_main.py,Not implemented,No FPS measurement stored in repo
+Multi-video operation,Generalise across matches,One hand-annotated clip; sample corners reused,data/ + webapp/server.py,Not implemented,Correct behaviour needs new annotations per video
+Multi-sport operation,Adaptable beyond volleyball,Volleyball-specific constants and zones only,analytics/constants.py,Not implemented,Design allows it; no work done

@@ -33,15 +33,19 @@ ROOT = Path(__file__).resolve().parent.parent
 WEB = Path(__file__).resolve().parent
 JOBS = WEB / "jobs"
 SAMPLE_BACKUP = WEB / "sample_backup"
-SAMPLE_VIDEO = ROOT / "sample3.mp4"
+SAMPLE_VIDEO = ROOT / "data" / "sample3.mp4"
+VENV_PY = ROOT / ".venv" / "Scripts" / "python.exe"
+if not VENV_PY.exists():
+    VENV_PY = ROOT / ".venv" / "bin" / "python"
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "pipeline"))
 from pipeline_profiling import is_enabled as profiling_enabled
 
 # Detection files the pipeline overwrites in the project root.
 SAMPLE_FILES = ("player_keypoints_mf3_pose.json", "ball.csv", "ball_clean.csv", "ball_candidates.json")
 # Court keypoint detection is unreliable, so every run uses the hand-made per-frame
 # court corners in the project root as-is. The web app never writes this file.
-ANNOTATIONS = ROOT / "annotations.json"
+ANNOTATIONS = ROOT / "data" / "annotations.json"
 TARGET_W, TARGET_H = 1920, 1080  # the camera model and court corners assume 1080p
 
 JOBS.mkdir(exist_ok=True)
@@ -124,14 +128,28 @@ def _probe(path: Path) -> dict:
 
 
 def _transcode(src: Path, dst: Path, scale: bool = False) -> None:
-    """H.264 + faststart so browsers can play and seek; optionally force 1080p."""
-    cmd = [_ffmpeg(), "-y", "-loglevel", "error", "-i", str(src)]
+    """H.264 + faststart so browsers can play and seek; uses GPU NVENC if available."""
+    base_cmd = [_ffmpeg(), "-y", "-loglevel", "error", "-i", str(src)]
+    filter_args = []
     if scale:
-        cmd += ["-vf", f"scale={TARGET_W}:{TARGET_H}:force_original_aspect_ratio=decrease,"
-                       f"pad={TARGET_W}:{TARGET_H}:(ow-iw)/2:(oh-ih)/2"]
-    cmd += ["-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart", str(dst)]
-    subprocess.run(cmd, check=True, capture_output=True)
+        filter_args = ["-vf", f"scale={TARGET_W}:{TARGET_H}:force_original_aspect_ratio=decrease,"
+                              f"pad={TARGET_W}:{TARGET_H}:(ow-iw)/2:(oh-ih)/2"]
+    # Try NVIDIA NVENC hardware encoder first for ultrafast GPU encoding
+    nvenc_cmd = base_cmd + filter_args + [
+        "-an", "-c:v", "h264_nvenc", "-preset", "p4", "-cq", "22", "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart", str(dst)
+    ]
+    try:
+        subprocess.run(nvenc_cmd, check=True, capture_output=True)
+        return
+    except Exception:
+        pass
+    # Fallback to software CPU encoder
+    cpu_cmd = base_cmd + filter_args + [
+        "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart", str(dst)
+    ]
+    subprocess.run(cpu_cmd, check=True, capture_output=True)
 
 
 # ----------------------------------------------------------------------------
@@ -156,14 +174,15 @@ def _ensure_sample_backup() -> None:
         return
     SAMPLE_BACKUP.mkdir()
     for name in SAMPLE_FILES:
-        if (ROOT / name).exists():
-            shutil.copy2(ROOT / name, SAMPLE_BACKUP / name)
+        src = ROOT / "data" / name
+        if src.exists():
+            shutil.copy2(src, SAMPLE_BACKUP / name)
 
 
 def _restore_sample() -> None:
     for name in SAMPLE_FILES:
         if (SAMPLE_BACKUP / name).exists():
-            shutil.copy2(SAMPLE_BACKUP / name, ROOT / name)
+            shutil.copy2(SAMPLE_BACKUP / name, ROOT / "data" / name)
 
 
 def _run(job_id: str, cmd: list[str], stages: list | None, base: tuple[float, float]) -> None:
@@ -221,7 +240,7 @@ def _process(job_id: str) -> None:
     job = _jobs[job_id]
     folder = JOBS / job_id
     out_dir = folder / "dashboard"
-    py = sys.executable
+    py = str(VENV_PY) if VENV_PY.exists() else sys.executable
     _update(job_id, status="running", started=time.time(), stage="prepare", progress=0.01)
     _log(job_id, f"Pipeline interpreter: {py}")
 
@@ -250,13 +269,13 @@ def _process(job_id: str) -> None:
         if frames > annotated:
             _log(job_id, f"WARNING: video has {frames} frames; frames past {annotated} have no court mapping")
 
-        _run(job_id, [py, "-u", "master_main.py", "--video", str(video), "--device", job["device"],
+        _run(job_id, [py, "-u", str(ROOT / "master_main.py"), "--video", str(video), "--device", job["device"],
                       "--teams", *job["teams"]],
              _FULL_STAGES, (0.04, 0.45))
         base = (0.70, 0.96)
 
     _update(job_id, stage="dashboard", progress=base[0])
-    cmd = [py, "-u", "tactical_dashboard.py", "--video", str(video), "--out", str(out_dir),
+    cmd = [py, "-u", str(ROOT / "pipeline" / "tactical_dashboard.py"), "--video", str(video), "--out", str(out_dir),
            "--teams", *job["teams"], "--nlp", job["nlp"], "--device", job["device"]]
     if job.get("max_frames"):
         cmd += ["--max-frames", str(job["max_frames"])]
@@ -308,31 +327,44 @@ def index():
 _system_cache: dict = {}
 
 
-@app.get("/api/system")
-def system():
+def _warmup_system() -> None:
+    global _system_cache
     if not _system_cache:
+        gpu = None
         try:
             import torch
             if hasattr(torch, "xpu") and torch.xpu.is_available():
                 gpu = torch.xpu.get_device_name(0)
             elif torch.cuda.is_available():
                 gpu = torch.cuda.get_device_name(0)
-            else:
-                gpu = None
-
-        except ImportError:
-            gpu = None
+        except Exception:
+            pass
+        if gpu is None and VENV_PY.exists():
+            try:
+                res = subprocess.run(
+                    [str(VENV_PY), "-c", "import torch; print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"],
+                    capture_output=True, text=True, timeout=5
+                )
+                detected = res.stdout.strip()
+                if detected:
+                    gpu = detected
+            except Exception:
+                pass
         from analytics.nlp import DEFAULT_LOCAL_MODEL
 
         try:
-            from huggingface_hub import snapshot_download
-
-            snapshot_download(DEFAULT_LOCAL_MODEL, local_files_only=True)
-            cached = True
+            from huggingface_hub import try_to_load_from_cache
+            cached = try_to_load_from_cache(DEFAULT_LOCAL_MODEL, "config.json") is not None
         except Exception:
             cached = False
         _system_cache.update(gpu=gpu, model=DEFAULT_LOCAL_MODEL, model_cached=cached,
                              sample=SAMPLE_VIDEO.exists())
+
+
+@app.get("/api/system")
+def system():
+    if not _system_cache:
+        _warmup_system()
     busy = sum(1 for j in _jobs.values() if j["status"] in ("queued", "running"))
     return jsonify({**_system_cache, "busy": busy})
 
@@ -393,6 +425,16 @@ def get_job(job_id: str):
     return jsonify(_public(job, with_log=True))
 
 
+@app.delete("/api/jobs")
+def clear_all_jobs():
+    with _lock:
+        to_del = [jid for jid, j in _jobs.items() if j.get("status") not in ("queued", "running")]
+        for jid in to_del:
+            _jobs.pop(jid, None)
+            shutil.rmtree(JOBS / jid, ignore_errors=True)
+    return jsonify({"deleted": len(to_del)}), 200
+
+
 @app.delete("/api/jobs/<job_id>")
 def delete_job(job_id: str):
     job = _jobs.get(job_id) or abort(404)
@@ -439,13 +481,17 @@ def files(job_id: str, name: str):
 
 @app.get("/sample.mp4")
 def sample_video():
-    return send_from_directory(ROOT, SAMPLE_VIDEO.name)
+    return send_from_directory(ROOT / "data", SAMPLE_VIDEO.name)
 
 
 _load_jobs()
 threading.Thread(target=_worker, daemon=True).start()
 
 if __name__ == "__main__":
+    if VENV_PY.exists() and Path(sys.executable).resolve() != VENV_PY.resolve():
+        print(f"Switching server to virtual environment: {VENV_PY}")
+        import subprocess
+        sys.exit(subprocess.call([str(VENV_PY)] + sys.argv))
     port = int(os.environ.get("PORT", 5000))
     print(f"GRITSENSE web app -> http://127.0.0.1:{port}")
     app.run(host="127.0.0.1", port=port, debug=False, threaded=True)

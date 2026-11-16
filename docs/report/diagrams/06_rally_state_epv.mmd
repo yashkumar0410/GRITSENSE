@@ -1,0 +1,36 @@
+%% GritSense - possession / rally phase state machine and EPV decision loop
+stateDiagram-v2
+    [*] --> WaitingForBall
+    WaitingForBall --> WaitingForBall: no visible ball
+    WaitingForBall --> Serve: touch detected, server near baseline
+    WaitingForBall --> Possession: ball seen on one side for 8 frames
+
+    Serve --> InFlight: ball leaves the server
+    Possession --> Pass: first touch, ball sent up from below 2.2 m
+    Pass --> Set: second touch, ball sent up from above 2.2 m
+    Set --> Attack: third touch, ball above 2.2 m and crosses the net
+    Attack --> InFlight: ball crosses the net
+    InFlight --> Pass: opponents' first touch
+    InFlight --> Set: set detected
+    InFlight --> Possession: side change debounced 8 frames
+    Pass --> InFlight: ball travels to the chosen hitter
+    Set --> InFlight: ball travels to the chosen hitter
+
+    state Serve {
+        [*] --> EPVFromBaseline
+        EPVFromBaseline: EPV surface, serve shots only<br/>advice shown
+    }
+    state Set {
+        [*] --> ChooseHitter
+        ChooseHitter: evaluate each teammate's peak EPV<br/>recommend "set to #id"
+    }
+    state Attack {
+        [*] --> EPVAtHit
+        EPVAtHit: blockers judged at the hit<br/>3 nearest defenders, full reach
+    }
+
+    note right of Attack
+        EPV = P(lands in) x (1 - P(blocked)) x P(no defender reaches)
+        Smoothed over 0.18 EMA, debounced 10 frames,
+        HRN priors weighted by measured test skill (currently 0.00)
+    end note

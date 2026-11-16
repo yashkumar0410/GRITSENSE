@@ -1,0 +1,53 @@
+%% GritSense - documented intent versus implemented status
+flowchart TB
+    subgraph DOC["Phase 2 / Phase 3 documents"]
+        A1["YOLO detection"]
+        A2["BlazePose pose estimation"]
+        A3["Court keypoint detection"]
+        A4["Homography + speed"]
+        A5["Interaction graph"]
+        A6["GAT"]
+        A7["HRN"]
+        A8["Temporal features:<br/>position, pose, ball, spatial"]
+        A9["GRU classifier"]
+        A10["Transformer baseline + comparison"]
+        A11["Rally segmentation +<br/>state-action-outcome tuples"]
+        A12["EPV"]
+        A13["Group activity recognition"]
+        A14["Activity forecasting"]
+        A15["Real-time operation"]
+    end
+
+    subgraph IMPL["Implemented in repository"]
+        B1["Ultralytics YOLO<br/>3 custom checkpoints<br/>STATUS: completed"]
+        B2["YOLOv8-pose, 17 COCO kpts<br/>STATUS: completed (substituted)"]
+        B3["manual annotations.json<br/>STATUS: not implemented"]
+        B4["per-frame homography + camera<br/>STATUS: completed (manual corners)"]
+        B5["49-D nodes, 132 edges<br/>STATUS: completed (image space)"]
+        B6["2-layer, 4-head GAT<br/>STATUS: trained, below baseline"]
+        B7["player/team/global HRN<br/>STATUS: trained, zero skill"]
+        B8["32-D HRN embedding only<br/>STATUS: partially implemented"]
+        B9["GRU + trainer<br/>STATUS: implemented, untrained"]
+        B10["Transformer only, no comparison<br/>STATUS: experimental"]
+        B11["per-frame phase machine only<br/>STATUS: partially implemented"]
+        B12["physics EPV, 5 shots<br/>STATUS: completed"]
+        B13["external RCRG checkpoint<br/>STATUS: broken at HEAD"]
+        B14["0.5 s movement prediction only<br/>STATUS: partially implemented"]
+        B15["offline batch + profiling<br/>STATUS: not implemented"]
+    end
+
+    A1 --> B1
+    A2 --> B2
+    A3 --> B3
+    A4 --> B4
+    A5 --> B5
+    A6 --> B6
+    A7 --> B7
+    A8 --> B8
+    A9 --> B9
+    A10 --> B10
+    A11 --> B11
+    A12 --> B12
+    A13 --> B13
+    A14 --> B14
+    A15 --> B15

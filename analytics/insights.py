@@ -401,10 +401,15 @@ class InsightEngine:
             for mate in by_team[attack]:
                 if key is not None and mate.id == key.id:
                     continue
-                option = self.epv.surface((mate.x, mate.y), defenders, defend, time_to_hit=SET_TIME_S)
-                if option.values.max() > best:
-                    best, physics, set_to = option.values.max(), option, mate
+                # Only the peak matters while choosing, so skip the display layers.
+                option_values = self.epv.surface_values(
+                    (mate.x, mate.y), defenders, defend, time_to_hit=SET_TIME_S
+                )
+                option_peak = option_values.max()
+                if option_peak > best:
+                    best, set_to = option_peak, mate
             if set_to is not None:
+                physics = self.epv.surface((set_to.x, set_to.y), defenders, defend, time_to_hit=SET_TIME_S)
                 key, key_player, contact = set_to, set_to.id, (set_to.x, set_to.y)
                 if on_ball is not None:
                     self._planned_hitter = (set_to.id, frame_idx)

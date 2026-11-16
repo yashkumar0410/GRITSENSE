@@ -1,0 +1,54 @@
+%% GritSense - model processing pipeline
+flowchart TB
+    F["Frame t<br/>1920 x 1080"]
+    TR["Tracked players<br/>box, id, confidence"]
+    KP["Pose keypoints<br/>17 x (x, y)"]
+    BL["Ball (x, y)"]
+
+    N["sample_data.create_sample_data(t)<br/>normalise to image space"]
+
+    X["Node features x [N, 49]<br/>type 2 + pos 2 + vel 2 + team 2<br/>+ pose 34 + avail 1 + conf 1 + court 5"]
+    E["Edges [E, 4]<br/>rel_x, rel_y, distance, same_team<br/>N=12 -> E=132"]
+    T["Metadata<br/>node_type [N], node_team [N]"]
+
+    G1["GATConv 49 -> 32 x 4 heads (concat)"]
+    RES["+ Linear 49 -> 128 residual"]
+    ACT["ELU + dropout 0.2"]
+    G2["GATConv 128 -> 32 (head mean)"]
+    ATTN["Layer-2 attention<br/>used for key matchups"]
+
+    HRN1["player mask"]
+    HRN2["team 0 mean, team 1 mean -> [2, 32]"]
+    HRN3["team_projection"]
+    HRN4["mean(teams) + mean(ball) / 2 -> [1, 32]"]
+    HRN5["global_projection -> 32-D embedding"]
+
+    WIN["8-frame windows, stride 1<br/>[8, 32]"]
+    GRU["GRUTemporalModel<br/>untrained"]
+    TRF["TransformerTemporalModel<br/>untrained"]
+    CLS["8 group-activity classes<br/>requires missing checkpoint"]
+
+    HEADS["HRNHeads<br/>zone 6 / shot 5 / threat / team shape"]
+    EPVS["Physics EPV surface<br/>1296 cells, 5 shots"]
+    BLEND["skill-scaled blend<br/>zone prior, shot prior, attention"]
+    OUT["target, shot, EPV, risk, matchups, shape"]
+
+    F --> TR --> N
+    F --> KP --> N
+    F --> BL --> N
+    N --> X
+    N --> E
+    N --> T
+    X --> G1 --> RES --> ACT --> G2 --> ATTN
+    G2 --> HRN1 --> HRN2 --> HRN3 --> HRN4 --> HRN5
+    HRN5 --> WIN
+    WIN --> GRU --> CLS
+    WIN --> TRF --> CLS
+    HRN3 --> HEADS
+    HEADS --> BLEND
+    N --> EPVS --> BLEND --> OUT
+    ATTN --> BLEND
+
+    style GRU stroke-dasharray: 5 5
+    style TRF stroke-dasharray: 5 5
+    style CLS stroke-dasharray: 5 5

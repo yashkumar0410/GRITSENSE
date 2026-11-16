@@ -1,0 +1,1137 @@
+import sys as _sys
+from pathlib import Path as _Path
+_project_root = str(_Path(__file__).resolve().parent.parent)
+if _project_root not in _sys.path:
+    _sys.path.insert(0, _project_root)
+    _sys.path.insert(1, str(_Path(__file__).resolve().parent))
+del _sys, _Path, _project_root
+
+
+import copy
+import csv
+import json
+import threading
+from pathlib import Path
+
+import numpy as np
+
+
+IMAGE_WIDTH = 1920
+IMAGE_HEIGHT = 1080
+
+
+# ============================================================
+# PROJECT ROOT
+# ============================================================
+
+VIP_ROOT = Path(__file__).resolve().parent.parent
+
+# Prefer the cleaned ball track (clean_ball_track.py) when it exists.
+BALL_FILE = VIP_ROOT / "data" / "ball_clean.csv" if (VIP_ROOT / "data" / "ball_clean.csv").exists() else VIP_ROOT / "data" / "ball.csv"
+PLAYER_FILE = VIP_ROOT / "data" / "player_keypoints_mf3_pose.json"
+COURT_FILE = VIP_ROOT / "data" / "annotations.json"
+
+
+# ============================================================
+# FILE CACHES
+# ============================================================
+#
+# create_sample_data() is called once per frame by the graph / dashboard
+# loops, and every call used to re-read and re-parse the multi-megabyte
+# player JSON, the ball CSV and the court annotations.  The parsed values
+# do not change for the lifetime of a stage, so cache them and revalidate
+# with (mtime, size) so a regenerated file is picked up automatically.
+
+_DATA_CACHE = {}
+_DATA_CACHE_LOCK = threading.RLock()
+
+
+def _cached(path, loader):
+    """Return loader(path), memoized on the file's mtime/size."""
+    path = Path(path)
+    stat = path.stat()
+    signature = (stat.st_mtime_ns, stat.st_size)
+    key = str(path)
+
+    with _DATA_CACHE_LOCK:
+        entry = _DATA_CACHE.get(key)
+        if entry is not None and entry[0] == signature:
+            return entry[1]
+
+    value = loader(path)
+
+    with _DATA_CACHE_LOCK:
+        _DATA_CACHE[key] = (signature, value)
+
+    return value
+
+
+def _load_json(path):
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _load_ball_table(path):
+    with path.open("r", newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames or []
+        return fieldnames, list(reader)
+
+
+def clear_cache():
+    """Drop cached file contents (tests, or after rewriting inputs in-place)."""
+
+    with _DATA_CACHE_LOCK:
+        _DATA_CACHE.clear()
+
+
+# ============================================================
+# LOAD ALL FRAME IDS FROM BALL.CSV
+# ============================================================
+
+def get_available_frames():
+    """
+    Read ball.csv and return every frame ID that has valid data.
+    """
+
+    if not BALL_FILE.exists():
+        raise FileNotFoundError(
+            f"ball.csv not found:\n{BALL_FILE}"
+        )
+
+    frames = []
+
+    with BALL_FILE.open(
+        "r",
+        newline="",
+        encoding="utf-8-sig"
+    ) as f:
+
+        reader = csv.DictReader(f)
+
+        if reader.fieldnames is None:
+            raise ValueError(
+                "ball.csv does not contain a header."
+            )
+
+        print(
+            "\nBall CSV columns:",
+            reader.fieldnames
+        )
+
+        # ----------------------------------------------------
+        # Find frame column
+        # ----------------------------------------------------
+
+        frame_column = None
+
+        possible_names = [
+            "Frame",
+            "frame",
+            "frame_id",
+            "FrameID",
+            "frameId",
+        ]
+
+        for name in possible_names:
+
+            if name in reader.fieldnames:
+                frame_column = name
+                break
+
+        if frame_column is None:
+            raise ValueError(
+                "Could not find frame column in ball.csv.\n"
+                f"Available columns: {reader.fieldnames}"
+            )
+
+        # ----------------------------------------------------
+        # Read frame IDs
+        # ----------------------------------------------------
+
+        for row in reader:
+
+            value = row.get(frame_column)
+
+            if value is None or value == "":
+                continue
+
+            try:
+
+                frame_id = int(
+                    float(value)
+                )
+
+                frames.append(
+                    frame_id
+                )
+
+            except (
+                ValueError,
+                TypeError
+            ):
+
+                continue
+
+    frames = sorted(
+        set(frames)
+    )
+
+    if not frames:
+
+        raise ValueError(
+            "No valid frame IDs were found in ball.csv."
+        )
+
+    print(
+        f"\nFound {len(frames)} frames in ball.csv."
+    )
+
+    print(
+        f"First frame: {frames[0]}"
+    )
+
+    print(
+        f"Last frame: {frames[-1]}"
+    )
+
+    return frames
+
+
+# ============================================================
+# LOAD REAL DATA FOR ONE FRAME
+# ============================================================
+
+def _load_real_sample_data(frame_id):
+    """
+    Load players, ball and court information for one frame.
+    """
+
+    # ========================================================
+    # CHECK FILES
+    # ========================================================
+
+    if not BALL_FILE.exists():
+
+        raise FileNotFoundError(
+            f"ball.csv not found:\n{BALL_FILE}"
+        )
+
+    if not PLAYER_FILE.exists():
+
+        raise FileNotFoundError(
+            f"player_keypoints_mf3_pose.json not found:\n{PLAYER_FILE}"
+        )
+
+    if not COURT_FILE.exists():
+
+        raise FileNotFoundError(
+            f"annotations.json not found:\n{COURT_FILE}"
+        )
+
+    # ========================================================
+    # BALL
+    # ========================================================
+
+    ball = None
+
+    fieldnames, ball_rows = _cached(BALL_FILE, _load_ball_table)
+
+    # ----------------------------------------------------
+    # Find columns
+    # ----------------------------------------------------
+
+    frame_column = None
+    x_column = None
+    y_column = None
+    visibility_column = None
+    confidence_column = None
+    velocity_x_column = None
+    velocity_y_column = None
+
+    for name in [
+        "Frame",
+        "frame",
+        "frame_id",
+        "FrameID",
+        "frameId",
+    ]:
+
+        if name in fieldnames:
+
+            frame_column = name
+
+            break
+
+    for name in [
+        "X",
+        "x",
+        "ball_x",
+        "Ball_X",
+        "center_x",
+    ]:
+
+        if name in fieldnames:
+
+            x_column = name
+
+            break
+
+    for name in [
+        "Y",
+        "y",
+        "ball_y",
+        "Ball_Y",
+        "center_y",
+    ]:
+
+        if name in fieldnames:
+
+            y_column = name
+
+            break
+
+    for name in [
+        "Visibility",
+        "visibility",
+        "visible",
+        "Visible",
+    ]:
+
+        if name in fieldnames:
+
+            visibility_column = name
+
+            break
+
+    for name in ["Confidence", "confidence", "BallConfidence"]:
+
+        if name in fieldnames:
+
+            confidence_column = name
+
+            break
+
+    for name in ["Velocity_X", "velocity_x", "VX", "vx"]:
+
+        if name in fieldnames:
+
+            velocity_x_column = name
+
+            break
+
+    for name in ["Velocity_Y", "velocity_y", "VY", "vy"]:
+
+        if name in fieldnames:
+
+            velocity_y_column = name
+
+            break
+
+    if frame_column is None:
+
+        raise ValueError(
+            f"No frame column found in ball.csv.\n"
+            f"Columns: {fieldnames}"
+        )
+
+    if (
+        x_column is None
+        or y_column is None
+    ):
+
+        raise ValueError(
+            f"Could not find ball X/Y columns.\n"
+            f"Columns: {fieldnames}"
+        )
+
+    # ----------------------------------------------------
+    # Find requested frame
+    # ----------------------------------------------------
+
+    previous_ball = None
+    next_ball = None
+
+    for row in ball_rows:
+
+        try:
+
+            current_frame = int(
+                float(
+                    row[frame_column]
+                )
+            )
+
+        except (
+            ValueError,
+            TypeError
+        ):
+
+            continue
+
+        try:
+
+            x = float(
+                row[x_column]
+            )
+
+            y = float(
+                row[y_column]
+            )
+
+        except (
+            ValueError,
+            TypeError
+        ):
+
+            continue
+
+        # ------------------------------------------------
+        # Visibility
+        # ------------------------------------------------
+
+        visible = True
+
+        if visibility_column is not None:
+
+            try:
+
+                visible = (
+                    int(
+                        float(
+                            row[
+                                visibility_column
+                            ]
+                        )
+                    )
+                    == 1
+                )
+
+            except (
+                ValueError,
+                TypeError
+            ):
+
+                visible = False
+
+        if not visible:
+            continue
+
+        if x < 0 or y < 0:
+            continue
+
+        if current_frame < frame_id:
+            if (
+                previous_ball is None
+                or current_frame > previous_ball["frame"]
+            ):
+                previous_ball = {
+                    "frame": current_frame,
+                    "x": x,
+                    "y": y,
+                }
+            continue
+
+        if current_frame > frame_id:
+            if (
+                next_ball is None
+                or current_frame < next_ball["frame"]
+            ):
+                next_ball = {
+                    "frame": current_frame,
+                    "x": x,
+                    "y": y,
+                }
+            continue
+
+        if current_frame != frame_id:
+            continue
+
+        try:
+            confidence = (
+                float(row[confidence_column])
+                if confidence_column is not None
+                and row.get(confidence_column) not in (None, "")
+                else 0.0
+            )
+        except (ValueError, TypeError):
+            confidence = 0.0
+
+        try:
+            vx = (
+                float(row[velocity_x_column])
+                if velocity_x_column is not None
+                and row.get(velocity_x_column) not in (None, "")
+                else 0.0
+            )
+            vy = (
+                float(row[velocity_y_column])
+                if velocity_y_column is not None
+                and row.get(velocity_y_column) not in (None, "")
+                else 0.0
+            )
+        except (ValueError, TypeError):
+            vx = vy = 0.0
+
+        if previous_ball is not None:
+            elapsed_frames = frame_id - previous_ball["frame"]
+            if elapsed_frames > 0:
+                vx = (x - previous_ball["x"]) / elapsed_frames
+                vy = (y - previous_ball["y"]) / elapsed_frames
+
+        ball = {
+            "x": x,
+            "y": y,
+            "frame": frame_id,
+            "vx": vx,
+            "vy": vy,
+            "confidence": confidence,
+        }
+
+        break
+
+    if ball is None:
+        max_interpolation_gap = 5
+        if (
+            previous_ball is not None
+            and next_ball is not None
+            and next_ball["frame"] > previous_ball["frame"]
+            and next_ball["frame"] - previous_ball["frame"] - 1
+            <= max_interpolation_gap
+        ):
+            span = next_ball["frame"] - previous_ball["frame"]
+            fraction = (frame_id - previous_ball["frame"]) / span
+            ball = {
+                "x": previous_ball["x"] + fraction * (next_ball["x"] - previous_ball["x"]),
+                "y": previous_ball["y"] + fraction * (next_ball["y"] - previous_ball["y"]),
+                "frame": frame_id,
+                "vx": (next_ball["x"] - previous_ball["x"]) / span,
+                "vy": (next_ball["y"] - previous_ball["y"]) / span,
+                "confidence": 0.0,
+            }
+        else:
+            nearest_ball = min(
+                (candidate for candidate in (previous_ball, next_ball) if candidate is not None),
+                key=lambda candidate: abs(candidate["frame"] - frame_id),
+                default=None,
+            )
+            if (
+                nearest_ball is not None
+                and abs(nearest_ball["frame"] - frame_id) <= max_interpolation_gap
+            ):
+                ball = {
+                    "x": nearest_ball["x"],
+                    "y": nearest_ball["y"],
+                    "frame": frame_id,
+                    "vx": 0.0,
+                    "vy": 0.0,
+                    "confidence": 0.0,
+                }
+
+    # ========================================================
+    # PLAYER DATA
+    # ========================================================
+
+    player_data = _cached(PLAYER_FILE, _load_json)
+
+    # --------------------------------------------------------
+    # Locate frame
+    # --------------------------------------------------------
+
+    frame_key = str(
+        frame_id
+    )
+
+    frame_players = None
+
+    if isinstance(
+        player_data,
+        dict
+    ):
+
+        # ----------------------------------------------------
+        # Your actual JSON format:
+        #
+        # "315": {
+        #     "1": {...},
+        #     "2": {...},
+        #     "3": {...}
+        # }
+        # ----------------------------------------------------
+
+        if frame_key in player_data:
+
+            frame_players = (
+                player_data[frame_key]
+            )
+
+        elif frame_id in player_data:
+
+            frame_players = (
+                player_data[frame_id]
+            )
+
+        elif "frames" in player_data:
+
+            frames_data = (
+                player_data["frames"]
+            )
+
+            if isinstance(
+                frames_data,
+                dict
+            ):
+
+                if frame_key in frames_data:
+
+                    frame_players = (
+                        frames_data[
+                            frame_key
+                        ]
+                    )
+
+                elif frame_id in frames_data:
+
+                    frame_players = (
+                        frames_data[
+                            frame_id
+                        ]
+                    )
+
+    elif isinstance(
+        player_data,
+        list
+    ):
+
+        for item in player_data:
+
+            if not isinstance(
+                item,
+                dict
+            ):
+                continue
+
+            item_frame = (
+                item.get("frame")
+                or item.get("frame_id")
+                or item.get("Frame")
+            )
+
+            try:
+
+                item_frame = int(
+                    float(item_frame)
+                )
+
+            except (
+                ValueError,
+                TypeError
+            ):
+
+                continue
+
+            if item_frame == frame_id:
+
+                frame_players = (
+                    item.get("players")
+                    or item.get("detections")
+                    or item.get("data")
+                )
+
+                break
+
+    if frame_players is None:
+
+        raise ValueError(
+            f"No player data found "
+            f"for frame {frame_id}"
+        )
+
+    # ========================================================
+    # CONVERT DICTIONARY -> LIST
+    # ========================================================
+
+    if isinstance(
+        frame_players,
+        dict
+    ):
+
+        frame_players = list(
+            frame_players.values()
+        )
+
+    elif not isinstance(
+        frame_players,
+        list
+    ):
+
+        raise ValueError(
+            f"Player data for frame "
+            f"{frame_id} is neither "
+            f"a dictionary nor a list."
+        )
+
+    # ========================================================
+    # NORMALIZE PLAYER DATA
+    # ========================================================
+
+    players = []
+
+    for idx, player in enumerate(
+        frame_players
+    ):
+
+        if not isinstance(
+            player,
+            dict
+        ):
+
+            continue
+
+        # ----------------------------------------------------
+        # Position
+        #
+        # Your JSON contains:
+        #
+        # "image_x": 1415.5
+        # "image_y": 849.0
+        # ----------------------------------------------------
+
+        x = player.get(
+            "image_x"
+        )
+
+        y = player.get(
+            "image_y"
+        )
+
+        # Generic fallback
+
+        if x is None:
+
+            x = player.get(
+                "x"
+            )
+
+        if x is None:
+
+            x = player.get(
+                "center_x"
+            )
+
+        if y is None:
+
+            y = player.get(
+                "y"
+            )
+
+        if y is None:
+
+            y = player.get(
+                "center_y"
+            )
+
+        # ----------------------------------------------------
+        # Bounding box fallback
+        # ----------------------------------------------------
+
+        if (
+            (x is None or y is None)
+            and "bbox" in player
+        ):
+
+            bbox = player[
+                "bbox"
+            ]
+
+            if (
+                isinstance(
+                    bbox,
+                    (list, tuple)
+                )
+                and len(bbox) >= 4
+            ):
+
+                try:
+
+                    x1, y1, x2, y2 = map(
+                        float,
+                        bbox[:4]
+                    )
+
+                    # Bottom-center of bounding box
+
+                    x = (
+                        x1 + x2
+                    ) / 2.0
+
+                    y = y2
+
+                except (
+                    ValueError,
+                    TypeError
+                ):
+
+                    pass
+
+        if x is None or y is None:
+            continue
+
+        try:
+
+            x = float(x)
+            y = float(y)
+
+        except (
+            ValueError,
+            TypeError
+        ):
+
+            continue
+
+        # ----------------------------------------------------
+        # Team
+        # ----------------------------------------------------
+
+        team = player.get(
+            "team"
+        )
+
+        if team is None:
+
+            team = player.get(
+                "team_id"
+            )
+
+        if team is None:
+
+            team = player.get(
+                "class_id"
+            )
+
+        # Accept numeric IDs and legacy string labels. HRN expects team IDs 0/1.
+        if isinstance(team, str):
+            normalized_team = team.strip().lower()
+            if normalized_team in {"left", "team0", "team_0", "0"}:
+                team = 0
+            elif normalized_team in {"right", "team1", "team_1", "1"}:
+                team = 1
+
+        try:
+            team = int(team) if team is not None else -1
+        except (ValueError, TypeError):
+            team = -1
+
+        if team not in (0, 1):
+            team = -1
+
+        # ----------------------------------------------------
+        # Pose / keypoints
+        # ----------------------------------------------------
+
+        keypoints = (
+            player.get("keypoints")
+            or player.get("pose")
+            or player.get("kpts")
+        )
+
+        pose_available = False
+
+        pose = []
+
+        if keypoints is not None:
+
+            if isinstance(
+                keypoints,
+                list
+            ):
+
+                # ------------------------------------------------
+                # Flatten nested keypoints
+                # ------------------------------------------------
+
+                if (
+                    len(keypoints) > 0
+                    and isinstance(
+                        keypoints[0],
+                        (list, tuple)
+                    )
+                ):
+
+                    flattened = []
+
+                    for kp in keypoints:
+
+                        if isinstance(
+                            kp,
+                            (list, tuple)
+                        ):
+
+                            flattened.extend(
+                                kp
+                            )
+
+                    keypoints = flattened
+
+                try:
+
+                    pose = [
+                        float(v)
+                        for v in keypoints
+                    ]
+
+                    # Original pipeline expects 34 values.
+
+                    if len(pose) == 34:
+
+                        pose_available = True
+
+                except (
+                    ValueError,
+                    TypeError
+                ):
+
+                    pose = []
+
+                    pose_available = False
+
+        # ----------------------------------------------------
+        # Player ID
+        # ----------------------------------------------------
+
+        player_id = player.get(
+            "id"
+        )
+
+        if player_id is None:
+
+            player_id = player.get(
+                "track_id"
+            )
+
+        if player_id is None:
+
+            player_id = idx
+
+        try:
+            vx = float(player.get("vx", 0.0) or 0.0)
+            vy = float(player.get("vy", 0.0) or 0.0)
+        except (ValueError, TypeError):
+            vx = vy = 0.0
+
+        confidence_value = player.get(
+            "confidence",
+            player.get("detection_confidence"),
+        )
+        if confidence_value is None:
+            confidence_value = player.get("pose_confidence", 0.0)
+        try:
+            confidence = float(confidence_value or 0.0)
+        except (ValueError, TypeError):
+            confidence = 0.0
+
+        # ----------------------------------------------------
+        # Create normalized player
+        # ----------------------------------------------------
+
+        player_entry = {
+
+            "id": player_id,
+
+            "x": x,
+
+            "y": y,
+
+            "vx": vx,
+
+            "vy": vy,
+
+            "team": team,
+
+            "confidence": confidence,
+
+            "pose": pose,
+
+            "pose_available":
+                pose_available,
+        }
+
+        players.append(
+            player_entry
+        )
+
+    # ========================================================
+    # TEAM FALLBACK
+    # ========================================================
+    #
+    # Your JSON currently has:
+    #
+    # "team": null
+    #
+    # Therefore infer teams when no valid team labels exist.
+    # ========================================================
+
+    valid_team_labels = [
+        p["team"]
+        for p in players
+        if p["team"] in (0, 1)
+    ]
+
+    if (
+        len(valid_team_labels) == 0
+        and len(players) >= 2
+    ):
+
+        players.sort(
+            key=lambda p: p["x"]
+        )
+
+        midpoint = (
+            len(players) // 2
+        )
+
+        for i, player in enumerate(
+            players
+        ):
+
+            if i < midpoint:
+
+                player["team"] = 0
+
+            else:
+
+                player["team"] = 1
+
+    # ========================================================
+    # COURT
+    # ========================================================
+
+    court_data = copy.deepcopy(
+        _cached(COURT_FILE, _load_json)
+    )
+
+    # --------------------------------------------------------
+    # Normalize court into dictionary
+    # --------------------------------------------------------
+
+    if isinstance(
+        court_data,
+        dict
+    ):
+
+        court = dict(
+            court_data
+        )
+
+    else:
+
+        court = {
+            "points": court_data
+        }
+
+    # ========================================================
+    # REQUIRED COURT DIMENSIONS
+    # ========================================================
+    #
+    # graph_builder.py requires:
+    #
+    #     court["width"]
+    #     court["height"]
+    #
+    # Your source annotations don't contain these, so use
+    # the actual video/image dimensions.
+    # ========================================================
+
+    if "width" not in court:
+
+        court["width"] = (
+            IMAGE_WIDTH
+        )
+
+    if "height" not in court:
+
+        court["height"] = (
+            IMAGE_HEIGHT
+        )
+
+    # ========================================================
+    # NET POSITION
+    # ========================================================
+
+    if "net_x" not in court:
+
+        court["net_x"] = (
+            IMAGE_WIDTH / 2
+        )
+
+    # ========================================================
+    # COURT POINTS
+    # ========================================================
+
+    if "points" not in court:
+
+        if "court_points" in court:
+
+            court["points"] = (
+                court["court_points"]
+            )
+
+        elif "keypoints" in court:
+
+            court["points"] = (
+                court["keypoints"]
+            )
+
+        else:
+
+            court["points"] = []
+
+    # ========================================================
+    # FINAL VALIDATION
+    # ========================================================
+
+    if ball is None:
+
+        raise ValueError(
+            f"No valid ball detection "
+            f"for frame {frame_id}"
+        )
+
+    if len(players) == 0:
+
+        raise ValueError(
+            f"No valid players "
+            f"for frame {frame_id}"
+        )
+
+    if "width" not in court:
+
+        raise ValueError(
+            "court must contain width "
+            "and height."
+        )
+
+    if "height" not in court:
+
+        raise ValueError(
+            "court must contain width "
+            "and height."
+        )
+
+    return players, ball, court
+
+
+# ============================================================
+# PUBLIC FUNCTION
+# ============================================================
+
+def create_sample_data(frame_id):
+    """
+    Load real data for a particular frame.
+
+    No synthetic fallback is used.
+    """
+
+    return _load_real_sample_data(
+        frame_id
+    )
